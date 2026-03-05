@@ -1,4 +1,5 @@
 import re
+import math
 import logging
 from cryptography.fernet import Fernet
 from config import ENCRYPTION_KEY
@@ -613,6 +614,45 @@ class PremiumSmartInterpreter:
             "explanation": f"E = m·c² = {m} × ({c})² = {result} J"
         }
 
+    # ========== ENHANCED GENERIC EXTRACTION ==========
+
+    def _extract_math_expression(self, text):
+        """
+        Attempt to extract a mathematical expression from free text
+        when no specific pattern matches.
+        """
+        # Convert common word operators to symbols
+        text = text.lower()
+        replacements = {
+            ' plus ': ' + ',
+            ' minus ': ' - ',
+            ' times ': ' * ',
+            ' multiplied by ': ' * ',
+            ' divided by ': ' / ',
+            ' over ': ' / ',
+            ' to the power of ': ' ^ ',
+            ' squared': '**2',
+            ' cubed': '**3',
+        }
+        for word, symbol in replacements.items():
+            text = text.replace(word, symbol)
+
+        # Look for patterns like "2+2", "x^2", "3*x", "5/2", etc.
+        # This regex tries to capture a basic arithmetic expression with numbers, x, operators, parentheses.
+        math_pattern = r'([0-9x\s\+\-\*\/\^\(\)\.]+)'
+        match = re.search(math_pattern, text)
+        if match:
+            expr = match.group(1).strip()
+            # Clean up any remaining non-math characters
+            expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)\.]', '', expr)
+            if expr and any(c in expr for c in ['+', '-', '*', '/', '^']):
+                # If it contains an equals sign, it might be an equation
+                if '=' in expr:
+                    return {"command": "solve", "expression": expr, "explanation": f"Solving: {expr}"}
+                else:
+                    return {"command": "calc", "expression": expr, "explanation": f"Calculating: {expr}"}
+        return None
+
     # ========== MAIN INTERPRET METHOD ==========
     def interpret(self, user_text: str) -> dict:
         """
@@ -628,6 +668,7 @@ class PremiumSmartInterpreter:
         if not user_text:
             return self._not_understood()
 
+        # Try each pattern in order
         for pattern, command, is_premium, handler in self.patterns:
             match = pattern.search(user_text)
             if match:
@@ -650,7 +691,14 @@ class PremiumSmartInterpreter:
                     logger.error(f"Error handling pattern {pattern.pattern}: {e}")
                     continue
 
-        # If nothing matched, return a premium‑upsell or fallback
+        # If no pattern matched, try generic extraction
+        generic = self._extract_math_expression(user_text)
+        if generic:
+            generic["confidence"] = "low"
+            generic["premium"] = False  # basic calc/solve are free
+            return generic
+
+        # Nothing understood
         return self._not_understood()
 
     def _not_understood(self):
