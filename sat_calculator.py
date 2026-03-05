@@ -7,6 +7,19 @@ Built with SymPy and math - no external APIs needed.
 import sympy as sp
 import math
 import re
+import numpy as np
+from scipy import optimize
+import matplotlib.pyplot as plt
+import io
+import base64
+from datetime import datetime
+import os
+import tempfile
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
 
 # ========== ADVANCED ALGEBRA ==========
 
@@ -478,6 +491,265 @@ def pythagorean_theorem(a=None, b=None, c=None):
         steps.append(f"❌ Error: {str(e)}")
         return steps, None
 
+# ========== CURVE FITTING (Premium) ==========
+
+def curve_fit_function(func_template, x_data_str, y_data_str):
+    """
+    Fit a custom function to data points.
+    Example: "a*exp(b*x)+c" with x=1,2,3 and y=2,4,8
+    """
+    steps = ["📈 **Curve Fitting (Premium Feature)**"]
+    steps.append(f"• Function template: {func_template}")
+    steps.append(f"• X data: {x_data_str}")
+    steps.append(f"• Y data: {y_data_str}")
+    
+    try:
+        # Parse data strings
+        x_data = [float(x.strip()) for x in x_data_str.split(',')]
+        y_data = [float(y.strip()) for y in y_data_str.split(',')]
+        
+        # Convert to numpy arrays
+        x = np.array(x_data, dtype=float)
+        y = np.array(y_data, dtype=float)
+        
+        steps.append(f"• Number of points: {len(x)}")
+        
+        if len(x) != len(y):
+            steps.append("❌ X and Y data must have the same length")
+            return steps, None
+        
+        # Parse the function template to identify parameters
+        # Find all parameter names (single letters commonly used)
+        param_matches = re.findall(r'[a-zA-Z]', func_template)
+        # Get unique parameters, excluding x and common constants
+        exclude = {'x', 'e', 'π', 'pi'}
+        params = sorted(list(set([p for p in param_matches if p not in exclude])))
+        
+        if not params:
+            # Default parameters if none found
+            params = ['a', 'b', 'c']
+        
+        steps.append(f"• Parameters to fit: {', '.join(params)}")
+        
+        # Create the fitting function
+        def create_fit_func(params):
+            def fit_func(x, *p):
+                # Create local namespace with parameters
+                namespace = {'x': x, 'math': math, 'np': np}
+                for param_name, param_value in zip(params, p):
+                    namespace[param_name] = param_value
+                
+                # Safe evaluation of the expression
+                try:
+                    # Replace ^ with ** for Python syntax
+                    expr = func_template.replace('^', '**')
+                    return eval(expr, {"__builtins__": {}}, namespace)
+                except:
+                    return np.nan
+            return fit_func
+        
+        fit_func = create_fit_func(params)
+        
+        # Initial guess: all parameters start at 1.0
+        initial_guess = [1.0] * len(params)
+        
+        steps.append(f"• Initial guess: {dict(zip(params, initial_guess))}")
+        
+        # Perform curve fitting
+        try:
+            popt, pcov = optimize.curve_fit(fit_func, x, y, p0=initial_guess, maxfev=5000)
+            
+            # Calculate fitted values
+            y_fit = fit_func(x, *popt)
+            
+            # Calculate R-squared
+            residuals = y - y_fit
+            ss_res = np.sum(residuals**2)
+            ss_tot = np.sum((y - np.mean(y))**2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 1.0
+            
+            # Calculate standard errors
+            perr = np.sqrt(np.diag(pcov)) if len(params) > 1 else [np.sqrt(pcov[0][0])]
+            
+            steps.append(f"• **Fitted Parameters:**")
+            for param_name, value, error in zip(params, popt, perr):
+                steps.append(f"  {param_name} = {value:.6f} ± {error:.6f}")
+            
+            steps.append(f"• **Goodness of fit:**")
+            steps.append(f"  R² = {r_squared:.6f}")
+            steps.append(f"  RMSE = {np.sqrt(ss_res/len(x)):.6f}")
+            
+            # Generate the fitted function string
+            fitted_func = func_template
+            for param_name, value in zip(params, popt):
+                fitted_func = fitted_func.replace(param_name, f"{value:.4f}")
+            
+            steps.append(f"• **Fitted function:** {fitted_func}")
+            
+            # Create a plot
+            plt.figure(figsize=(10, 6))
+            plt.scatter(x, y, color='red', label='Data points', s=50, zorder=5)
+            
+            # Generate smooth curve for plotting
+            x_smooth = np.linspace(min(x), max(x), 100)
+            y_smooth = fit_func(x_smooth, *popt)
+            plt.plot(x_smooth, y_smooth, 'b-', label=f'Fitted: {fitted_func}', linewidth=2)
+            
+            plt.xlabel('x')
+            plt.ylabel('y')
+            plt.title('Curve Fitting Result')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            
+            # Save plot to bytes buffer
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+            
+            # Return steps, results, and plot buffer
+            results = {
+                'parameters': dict(zip(params, popt)),
+                'errors': dict(zip(params, perr)),
+                'r_squared': r_squared,
+                'fitted_function': fitted_func,
+                'plot': buf
+            }
+            
+            return steps, results
+            
+        except Exception as fit_error:
+            steps.append(f"❌ Curve fitting failed: {str(fit_error)}")
+            steps.append("  Try a different function template or check your data.")
+            return steps, None
+        
+    except Exception as e:
+        steps.append(f"❌ Error: {str(e)}")
+        return steps, None
+
+# ========== PDF EXPORT (Premium) ==========
+
+def export_to_pdf(user_id, history_data, calculations):
+    """
+    Generate a PDF report of user's calculations.
+    Returns path to the generated PDF file.
+    """
+    steps = ["📄 **PDF Export (Premium Feature)**"]
+    
+    try:
+        # Create a temporary file for the PDF
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pdf_filename = f"calc_history_{user_id}_{timestamp}.pdf"
+        pdf_path = os.path.join(tempfile.gettempdir(), pdf_filename)
+        
+        # Create the PDF document
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=1,  # Center alignment
+            textColor=colors.HexColor('#0066cc')
+        )
+        title = Paragraph("SmartCalcAI Bot - Calculation History", title_style)
+        story.append(title)
+        
+        # Date and user info
+        date_style = ParagraphStyle(
+            'DateStyle',
+            parent=styles['Normal'],
+            fontSize=12,
+            spaceAfter=20,
+            alignment=1
+        )
+        date_info = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", date_style)
+        story.append(date_info)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # User ID
+        user_info = Paragraph(f"User ID: {user_id}", date_style)
+        story.append(user_info)
+        story.append(Spacer(1, 0.3*inch))
+        
+        if not history_data:
+            story.append(Paragraph("No calculation history found.", styles['Normal']))
+        else:
+            # Summary statistics
+            story.append(Paragraph("📊 **Summary Statistics**", styles['Heading2']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            total_calcs = len(history_data)
+            unique_commands = len(set([h[0] for h in history_data]))
+            
+            stats_data = [
+                ["Total Calculations:", str(total_calcs)],
+                ["Unique Commands Used:", str(unique_commands)],
+                ["Date Range:", f"{history_data[-1][3][:10]} to {history_data[0][3][:10]}"],
+            ]
+            
+            stats_table = Table(stats_data, colWidths=[2*inch, 2*inch])
+            stats_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 12),
+                ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0066cc')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(stats_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Recent calculations
+            story.append(Paragraph("📝 **Recent Calculations**", styles['Heading2']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            # Create table for calculations
+            table_data = [['Command', 'Input', 'Output', 'Date']]
+            for cmd, inp, out, ts in history_data[:20]:  # Show last 20
+                date = ts[:16] if ts else "N/A"
+                # Truncate long strings
+                inp_short = inp[:30] + "..." if len(inp) > 30 else inp
+                out_short = out[:30] + "..." if len(out) > 30 else out
+                table_data.append([cmd, inp_short, out_short, date])
+            
+            calc_table = Table(table_data, colWidths=[1*inch, 1.8*inch, 1.8*inch, 1.4*inch])
+            calc_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066cc')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ]))
+            story.append(calc_table)
+            
+            # Add any additional calculations passed in
+            if calculations:
+                story.append(Spacer(1, 0.3*inch))
+                story.append(Paragraph("🔢 **Current Calculations**", styles['Heading2']))
+                story.append(Spacer(1, 0.1*inch))
+                
+                calc_text = "<br/>".join([f"• {calc}" for calc in calculations])
+                story.append(Paragraph(calc_text, styles['Normal']))
+        
+        # Build PDF
+        doc.build(story)
+        
+        steps.append(f"✅ PDF generated successfully: {pdf_filename}")
+        return steps, pdf_path
+        
+    except Exception as e:
+        steps.append(f"❌ Error generating PDF: {str(e)}")
+        return steps, None
+
 # ========== TEST GENERATOR (Premium) ==========
 
 def generate_test(topic, difficulty="medium"):
@@ -557,6 +829,59 @@ def generate_test(topic, difficulty="medium"):
         steps.append(f"• = {favorable/total*100:.1f}%")
         
         return steps, {"favorable": favorable, "total": total, "probability": favorable/total}
+        
+    elif topic == "algebra":
+        # Generate linear equation
+        a = random.randint(1, 5)
+        b = random.randint(-10, 10)
+        solution = random.randint(-5, 5)
+        
+        # Build equation: a*x + b = solution
+        equation = f"{a}x + {b} = {a*solution + b}"
+        
+        steps.append(f"**Question:** Solve for x: {equation}")
+        steps.append("")
+        steps.append("**Solution:**")
+        steps.append(f"1. {equation}")
+        steps.append(f"2. Subtract {b} from both sides: {a}x = {a*solution}")
+        steps.append(f"3. Divide by {a}: x = {solution}")
+        
+        return steps, {"equation": equation, "solution": solution}
+        
+    elif topic == "geometry":
+        # Generate geometry problem
+        shape = random.choice(["circle", "square", "rectangle"])
+        
+        if shape == "circle":
+            radius = random.randint(2, 8)
+            steps.append(f"**Question:** Find the area of a circle with radius {radius}.")
+            steps.append("")
+            steps.append("**Solution:**")
+            steps.append(f"• Formula: A = πr²")
+            steps.append(f"• A = π × {radius}²")
+            steps.append(f"• A = π × {radius**2}")
+            steps.append(f"• A ≈ {math.pi * radius**2:.2f} square units")
+            return steps, {"shape": "circle", "radius": radius, "area": math.pi * radius**2}
+        
+        elif shape == "square":
+            side = random.randint(3, 10)
+            steps.append(f"**Question:** Find the area and perimeter of a square with side {side}.")
+            steps.append("")
+            steps.append("**Solution:**")
+            steps.append(f"• Area = side² = {side}² = {side**2}")
+            steps.append(f"• Perimeter = 4 × side = 4 × {side} = {4*side}")
+            return steps, {"shape": "square", "side": side, "area": side**2, "perimeter": 4*side}
+        
+        else:  # rectangle
+            length = random.randint(4, 12)
+            width = random.randint(2, 8)
+            steps.append(f"**Question:** Find the area of a rectangle with length {length} and width {width}.")
+            steps.append("")
+            steps.append("**Solution:**")
+            steps.append(f"• Formula: A = l × w")
+            steps.append(f"• A = {length} × {width}")
+            steps.append(f"• A = {length * width}")
+            return steps, {"shape": "rectangle", "length": length, "width": width, "area": length * width}
         
     else:
         steps.append("Topic not available yet")
