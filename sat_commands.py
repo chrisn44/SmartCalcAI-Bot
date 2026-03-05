@@ -550,7 +550,7 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Could not generate test.")
 
-# ========== OWNER STATISTICS COMMAND (NEW) ==========
+# ========== OWNER STATISTICS COMMAND (FIXED) ==========
 
 async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner command to get real bot statistics."""
@@ -560,8 +560,10 @@ async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
+        # Import the real stats module
         from sat_stats import get_stats
         stats = get_stats()
+        
         await update.message.reply_text(
             f"👑 **Bot Statistics**\n\n"
             f"📊 **Total users:** `{stats['total_users']}`\n"
@@ -570,5 +572,10 @@ async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
         history.add_history(user_id, "botstats", "", str(stats))
+    except ImportError:
+        await update.message.reply_text(
+            "❌ Statistics module not found.\n"
+            "Please make sure `sat_stats.py` exists in your bot directory."
+        )
     except Exception as e:
         await update.message.reply_text(f"❌ Error fetching stats: {e}")
