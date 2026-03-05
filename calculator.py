@@ -209,24 +209,38 @@ def minimize(expr_str, var='x', guess=0.0):
 # ========== Premium Features ==========
 def solve_system(eqs_str, vars_str):
     """Solve system of equations. Input: "x + y = 5, 2x - y = 1" for "x,y" """
+    steps = [f"📝 System: {eqs_str}"]
+    steps.append(f"📝 Variables: {vars_str}"]
+    
     # Parse equations
     eqs = []
     for eq in eqs_str.split(','):
         eq = eq.strip()
-        expr = safe_parse(eq)
-        if not isinstance(expr, sp.Eq):
-            expr = sp.Eq(expr, 0)
-        eqs.append(expr)
+        
+        # Handle equations with = sign
+        if '=' in eq:
+            left, right = eq.split('=')
+            # Convert to expression = 0: left - right = 0
+            expr_str = f"({left.strip()}) - ({right.strip()})"
+        else:
+            # Assume =0 if no equals sign
+            expr_str = eq
+        
+        try:
+            expr = safe_parse(expr_str)
+            eqs.append(expr)
+        except Exception as e:
+            raise ValueError(f"Invalid equation '{eq}': {e}")
     
     # Parse variables
     var_list = [sp.Symbol(v.strip()) for v in vars_str.split(',')]
     
-    steps = [f"📝 System: {eqs_str}"]
-    steps.append(f"📝 Variables: {vars_str}")
-    
-    sol = sp.solve(eqs, var_list)
-    steps.append(f"✅ Solution: {sol}")
-    return steps, sol
+    try:
+        sol = sp.solve(eqs, var_list)
+        steps.append(f"✅ Solution: {sol}")
+        return steps, sol
+    except Exception as e:
+        raise ValueError(f"Failed to solve system: {e}")
 
 def curve_fit(func_template, data_str):
     """Curve fitting - simplified version"""
