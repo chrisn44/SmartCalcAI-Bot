@@ -1416,6 +1416,21 @@ async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT
     explanation = interpretation.get("explanation")
     cmd = interpretation.get("command", "none")
     
+    # If it's a simple calculation, just compute it directly
+    if cmd == "calc" and expr:
+        # Check free tier limit
+        if not await enforce_limit(update):
+            return
+        try:
+            steps, result = calculator.evaluate_expression(expr)
+            await reply_with_steps(update, steps, result)
+            history.add_history(update.effective_user.id, "calc", expr, str(result))
+            return
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {e}")
+            return
+    
+    # For other commands, suggest the command
     if expr and cmd != "none":
         # Build the command suggestion based on command type
         if cmd == "integrate" and interpretation.get("limits"):
@@ -1434,7 +1449,8 @@ async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT
             cmd_text = f"/{cmd} {interpretation['expression']}"
         elif interpretation.get("variable") and cmd not in ["calc", "stat"]:
             # Handle commands with variables
-            cmd_text = f"/{cmd} {expr} {interpretation['variable']}"
+            clean_expr = expr.replace('?', '').strip()
+            cmd_text = f"/{cmd} {clean_expr}"
         else:
             # Default format
             cmd_text = f"/{cmd} {expr}"
