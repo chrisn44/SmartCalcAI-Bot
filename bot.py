@@ -210,7 +210,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/removepremium <user_id>` – Remove premium
 • `/checkuser <user_id>` – Check user status
 • `/broadcast <message>` – Send message to all users
-• `/stats` – Bot statistics
+• `/botstats` – Bot statistics (real data!)
 """
     
     await update.message.reply_text(welcome, parse_mode='Markdown')
@@ -463,9 +463,6 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• `/ode y'' + 2*y' + y = 0`",
             parse_mode='Markdown'
         )
-    else:
-        # Success case - do nothing (the answer was already sent)
-        pass
 
 # ========== Transforms ==========
 
@@ -1343,21 +1340,7 @@ async def owner_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
 
-async def owner_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Owner command to get bot statistics."""
-    if not is_owner(update.effective_user.id):
-        await update.message.reply_text("❌ This command is only for bot owner.")
-        return
-    
-    # This would require additional database queries
-    await update.message.reply_text(
-        "👑 **Bot Statistics**\n\n"
-        "Total users: (coming soon)\n"
-        "Premium users: (coming soon)\n"
-        "Total calculations: (coming soon)\n\n"
-        "This feature requires additional database queries.",
-        parse_mode='Markdown'
-    )
+# Note: The real statistics command is now in sat_commands.py as /botstats
 
 # ========== API Key Commands ==========
 
@@ -1693,7 +1676,7 @@ def run_bot():
     # Free commands - History
     app.add_handler(CommandHandler("history", history_cmd))
 
-    # Load SAT features
+    # Load SAT features (includes /botstats command)
     from sat_integration import add_sat_handlers
     add_sat_handlers(app)
     
@@ -1706,12 +1689,11 @@ def run_bot():
     app.add_handler(CommandHandler("save", save_func))
     app.add_handler(CommandHandler("list", list_funcs))
     
-    # Owner commands
+    # Owner commands (stats removed - now using /botstats from SAT)
     app.add_handler(CommandHandler("addpremium", owner_add_premium))
     app.add_handler(CommandHandler("removepremium", owner_remove_premium))
     app.add_handler(CommandHandler("checkuser", owner_check_user))
     app.add_handler(CommandHandler("broadcast", owner_broadcast))
-    app.add_handler(CommandHandler("stats", owner_stats))
     
     # API key commands
     app.add_handler(CommandHandler("setkey", setkey))
