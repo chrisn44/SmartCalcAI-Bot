@@ -419,13 +419,13 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "**Usage:** `/ode <ODE>`\n\n"
             "**Examples:**\n"
             "• `/ode y'' + y = 0`\n"
-            "• `/ode y'' + 2*y' + y = 0`\n"
             "• `/ode y' = y`\n"
+            "• `/ode y'' + 2*y' + y = 0`\n"
             "• `/ode y'' - 4*y = 0`\n\n"
             "**Notes:**\n"
             "• Use `''` for second derivative\n"
             "• Use `'` for first derivative\n"
-            "• Always include the `=` sign\n"
+            "• Always include spaces around operators\n"
             "• Use `*` for multiplication (e.g., `2*y` not `2y`)",
             parse_mode='Markdown'
         )
@@ -434,15 +434,15 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Detect the function name (y, f, etc.)
         import re
-        match = re.match(r"([a-zA-Z])'", text)
-        if match:
-            func_name = match.group(1)
+        func_match = re.match(r"\s*([a-zA-Z])['\"]", text)
+        if func_match:
+            func_name = func_match.group(1)
         else:
             func_name = 'y'  # default
         
         steps, solution = calculator.solve_ode(text, func=func_name)
         
-        # Format the response
+        # Format the response nicely
         response = f"{steps[0]}\n\n{steps[1]}"
         await update.message.reply_text(response, parse_mode='Markdown')
         history.add_history(update.effective_user.id, "ode", text, str(solution))
@@ -453,7 +453,8 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Try these exact formats:\n"
             f"• `/ode y'' + y = 0`\n"
             f"• `/ode y' = y`\n"
-            f"• `/ode y'' + 2*y' + y = 0`",
+            f"• `/ode y'' + 2*y' + y = 0`\n\n"
+            f"Make sure to use spaces around operators!",
             parse_mode='Markdown'
         )
 
