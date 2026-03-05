@@ -79,7 +79,7 @@ def series_expansion(expr_str, var='x', about=0, n=6):
     expr = safe_parse(expr_str)
     series = expr.series(var_sym, about, n)
     steps = [f"📝 Series expansion of `${sp.latex(expr)}$ about {var}={about} up to O({var}^{n})"]
-    steps.append(f"✅ Result: `${sp.latex(series)}$")]
+    steps.append(f"✅ Result: `${sp.latex(series)}$")  # ← REMOVED EXTRA BRACKET
     return steps, series
 
 # ========== Differential Equations ==========
