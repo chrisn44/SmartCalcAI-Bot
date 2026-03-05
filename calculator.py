@@ -210,7 +210,7 @@ def minimize(expr_str, var='x', guess=0.0):
 def solve_system(eqs_str, vars_str):
     """Solve system of equations. Input: "x + y = 5, 2x - y = 1" for "x,y" """
     steps = [f"📝 System: {eqs_str}"]
-    steps.append(f"📝 Variables: {vars_str}"]
+    steps.append(f"📝 Variables: {vars_str}")
     
     # Parse equations
     eqs = []
