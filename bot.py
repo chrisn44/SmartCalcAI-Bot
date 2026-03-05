@@ -60,6 +60,10 @@ logger = logging.getLogger(__name__)
 
 # ========== Helper Functions ==========
 
+def is_owner(user_id):
+    """Check if user is the bot owner."""
+    return user_id == config.OWNER_ID
+
 async def reply_with_steps(update, steps, result=None):
     """Send steps as formatted text."""
     msg = ""
@@ -107,7 +111,7 @@ async def enforce_limit(update: Update):
 def premium_required(func):
     """Decorator for premium-only commands."""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        if not history.is_premium(update.effective_user.id):
+        if not history.is_premium(update.effective_user.id) and not is_owner(update.effective_user.id):
             keyboard = [[InlineKeyboardButton("💎 Upgrade to Premium", callback_data="show_buy")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
@@ -123,8 +127,11 @@ def premium_required(func):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Welcome message with all commands."""
-    welcome = """
-🧠 **SmartCalcAI Bot – The Ultimate Math Assistant**
+    user_id = update.effective_user.id
+    owner_note = " (Owner)" if is_owner(user_id) else ""
+    
+    welcome = f"""
+🧠 **SmartCalcAI Bot – The Ultimate Math Assistant**{owner_note}
 
 **✨ Free Features** (10 calculations/day):
 • `/calc 2+2` – Basic calculations
@@ -173,9 +180,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 **💰 Buy Premium**:
 • `/buy` – See subscription options
-
-Just send a math question – if you have an API key, I'll understand natural language!
 """
+    
+    # Add owner commands if user is owner
+    if is_owner(user_id):
+        welcome += """
+**👑 Owner Commands**:
+• `/addpremium <user_id> <days>` – Manually add premium
+• `/removepremium <user_id>` – Remove premium
+• `/checkuser <user_id>` – Check user status
+• `/broadcast <message>` – Send message to all users
+• `/stats` – Bot statistics
+"""
+    
     await update.message.reply_text(welcome, parse_mode='Markdown')
 
 # ========== Basic Math Commands ==========
@@ -383,16 +400,33 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Examples:\n"
             "• `/ode f'' + f = 0`\n"
             "• `/ode y'' + 2y' + y = 0`\n"
-            "• `/ode f' = f`",
+            "• `/ode f' = f`\n"
+            "• `/ode f'' + 4*f = 0, f(0)=1, f'(0)=0`",
             parse_mode='Markdown'
         )
         return
+    
     try:
-        steps, sol = calculator.solve_ode(text)
+        # Check if initial conditions are provided
+        if ',' in text:
+            # Has initial conditions
+            parts = [p.strip() for p in text.split(',')]
+            ode_str = parts[0]
+            # Pass the whole thing to calculator for now
+            steps, sol = calculator.solve_ode(ode_str)
+        else:
+            steps, sol = calculator.solve_ode(text)
+            
         await reply_with_steps(update, steps, sol)
         history.add_history(update.effective_user.id, "ode", text, str(sol))
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(
+            f"❌ Error: {e}\n\n"
+            "Try these formats:\n"
+            "• `/ode f'' + f = 0`\n"
+            "• `/ode y'' + 2*y' + y = 0`\n"
+            "• `/ode f' = f`"
+        )
 
 # ========== Transforms ==========
 
@@ -405,7 +439,7 @@ async def laplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Usage: `/laplace <function> [variable] [s_var]`\n"
             "Examples:\n"
             "• `/laplace sin(t)`\n"
-            "• `/laplace exp(-at) t s`",
+            "• `/laplace exp(-a*t) t s`",
             parse_mode='Markdown'
         )
         return
@@ -988,6 +1022,206 @@ async def list_funcs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"• `{name}`: {expr}\n"
     await update.message.reply_text(msg, parse_mode='Markdown')
 
+# ========== Owner Commands ==========
+
+async def owner_add_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to manually add premium to a user."""
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+    
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "👑 **Owner: Add Premium**\n\n"
+            "Usage: `/addpremium <user_id> <days>`\n"
+            "Examples:\n"
+            "• `/addpremium 123456789 30` - 30 days\n"
+            "• `/addpremium 123456789 365` - 1 year\n"
+            "• `/addpremium 123456789 3650` - lifetime (10+ years)",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(args[0])
+        days = int(args[1])
+        
+        if days <= 0:
+            await update.message.reply_text("❌ Days must be positive.")
+            return
+        
+        expiry = datetime.now() + timedelta(days=days)
+        
+        # Determine subscription type
+        if days >= 3650:  # 10+ years = lifetime
+            sub_type = "lifetime"
+        elif days >= 365:
+            sub_type = "yearly"
+        else:
+            sub_type = "monthly"
+        
+        history.set_premium(user_id, expiry, sub_type)
+        
+        await update.message.reply_text(
+            f"✅ **Premium Added!**\n\n"
+            f"User ID: `{user_id}`\n"
+            f"Duration: {days} days\n"
+            f"Expires: {expiry.strftime('%Y-%m-%d')}\n"
+            f"Type: {sub_type}",
+            parse_mode='Markdown'
+        )
+        
+        # Try to notify the user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"🎉 **Congratulations!**\n\n"
+                     f"You have been granted premium access for {days} days!\n"
+                     f"Expires: {expiry.strftime('%Y-%m-%d')}\n\n"
+                     f"Enjoy all premium features!",
+                parse_mode='Markdown'
+            )
+        except:
+            logger.info(f"Could not notify user {user_id} about premium grant")
+            
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID or days. Use numbers.")
+
+async def owner_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to remove premium from a user."""
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text(
+            "👑 **Owner: Remove Premium**\n\n"
+            "Usage: `/removepremium <user_id>`\n"
+            "Example: `/removepremium 123456789`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(args[0])
+        
+        # Check if user has premium
+        if not history.is_premium(user_id):
+            await update.message.reply_text(f"❌ User {user_id} does not have premium.")
+            return
+        
+        # Remove premium by setting expiry to past
+        past_expiry = datetime.now() - timedelta(days=1)
+        history.set_premium(user_id, past_expiry, "expired")
+        
+        await update.message.reply_text(
+            f"✅ **Premium Removed!**\n\n"
+            f"User ID: `{user_id}`\n"
+            f"Premium access has been revoked.",
+            parse_mode='Markdown'
+        )
+        
+        # Try to notify the user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"ℹ️ Your premium access has been removed by the administrator.",
+                parse_mode='Markdown'
+            )
+        except:
+            logger.info(f"Could not notify user {user_id} about premium removal")
+            
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID.")
+
+async def owner_check_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to check user status."""
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text(
+            "👑 **Owner: Check User**\n\n"
+            "Usage: `/checkuser <user_id>`\n"
+            "Example: `/checkuser 123456789`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(args[0])
+        
+        # Check premium status
+        is_premium = history.is_premium(user_id)
+        expiry = history.get_premium_expiry(user_id)
+        
+        # Get daily count
+        daily_count = history.get_daily_count(user_id)
+        
+        # Check if has API key
+        provider, _ = history.get_user_key(user_id)
+        
+        msg = f"**User Information:**\n\n"
+        msg += f"User ID: `{user_id}`\n"
+        msg += f"Premium: {'✅ Yes' if is_premium else '❌ No'}\n"
+        
+        if is_premium and expiry:
+            msg += f"Expires: {expiry.strftime('%Y-%m-%d')}\n"
+        
+        msg += f"Today's calculations: {daily_count}/{config.FREE_DAILY_LIMIT if not is_premium else '∞'}\n"
+        msg += f"API Key: {'✅ ' + provider.capitalize() if provider else '❌ None'}\n"
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID.")
+
+async def owner_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to broadcast message to all users."""
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "👑 **Owner: Broadcast**\n\n"
+            "Usage: `/broadcast <message>`\n"
+            "Example: `/broadcast New features added!`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    message = ' '.join(args)
+    
+    await update.message.reply_text(
+        f"📢 **Broadcasting to all users...**\n\n"
+        f"Message: {message}\n\n"
+        f"This feature requires a list of all user IDs from the database.\n"
+        f"For now, it's a placeholder.",
+        parse_mode='Markdown'
+    )
+
+async def owner_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to get bot statistics."""
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+    
+    # This would require additional database queries
+    await update.message.reply_text(
+        "👑 **Bot Statistics**\n\n"
+        "Total users: (coming soon)\n"
+        "Premium users: (coming soon)\n"
+        "Total calculations: (coming soon)\n\n"
+        "This feature requires additional database queries.",
+        parse_mode='Markdown'
+    )
+
 # ========== API Key Commands ==========
 
 async def setkey(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1277,6 +1511,13 @@ def run_bot():
     app.add_handler(CommandHandler("share", share))
     app.add_handler(CommandHandler("save", save_func))
     app.add_handler(CommandHandler("list", list_funcs))
+    
+    # Owner commands
+    app.add_handler(CommandHandler("addpremium", owner_add_premium))
+    app.add_handler(CommandHandler("removepremium", owner_remove_premium))
+    app.add_handler(CommandHandler("checkuser", owner_check_user))
+    app.add_handler(CommandHandler("broadcast", owner_broadcast))
+    app.add_handler(CommandHandler("stats", owner_stats))
     
     # API key commands
     app.add_handler(CommandHandler("setkey", setkey))
