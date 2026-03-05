@@ -170,29 +170,52 @@ async def integrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /integrate <function> [from a to b] [variable]")
+        await update.message.reply_text("Usage: /integrate <function> [from a to b] [variable]\nExample: /integrate x^2 from 0 to 1")
         return
     try:
         if " from " in text and " to " in text:
-            func_part, rest = text.split(" from ")
-            limits_part, var_part = rest.split(" to ")
-            a_str, b_str = limits_part.split()
-            var = var_part.strip() if var_part else 'x'
+            # Parse: "x^2 from 0 to 1"
+            parts = text.split(" from ")
+            func_part = parts[0].strip()
+            
+            # Get the range part
+            range_part = parts[1].strip()
+            range_parts = range_part.split(" to ")
+            
+            if len(range_parts) != 2:
+                await update.message.reply_text("Please specify both lower and upper limits")
+                return
+                
+            a_str = range_parts[0].strip()
+            b_str = range_parts[1].strip()
+            
+            # Check if there's a variable specified after the limits
+            var = 'x'
+            # Split b_str in case variable is like "1 x"
+            b_parts = b_str.split()
+            if len(b_parts) > 1:
+                b_str = b_parts[0]
+                var = b_parts[1]
+            
             a, b = float(a_str), float(b_str)
             steps, result = calculator.integral_with_steps(func_part, var, (a, b))
         else:
+            # Indefinite integral
             parts = text.split()
-            if parts and parts[-1].isalpha():
+            if len(parts) > 1 and parts[-1].isalpha():
                 var = parts[-1]
                 func_str = ' '.join(parts[:-1])
             else:
                 var = 'x'
                 func_str = text
             steps, result = calculator.integral_with_steps(func_str, var)
+            
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "integrate", text, str(result))
-    except Exception as e:
+    except ValueError as e:
         await update.message.reply_text(f"❌ Error: {e}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error parsing input. Use format: /integrate x^2 from 0 to 1")
 
 async def limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
