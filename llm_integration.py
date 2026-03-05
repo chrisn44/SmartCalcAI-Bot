@@ -1,8 +1,26 @@
 import re
+import json
 import logging
+from cryptography.fernet import Fernet
+from config import ENCRYPTION_KEY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Encryption functions needed by history.py
+cipher = Fernet(ENCRYPTION_KEY)
+
+def encrypt_key(api_key: str) -> str:
+    """Encrypt API key for storage."""
+    if not api_key:
+        return ""
+    return cipher.encrypt(api_key.encode()).decode()
+
+def decrypt_key(encrypted_key: str) -> str:
+    """Decrypt stored API key."""
+    if not encrypted_key:
+        return ""
+    return cipher.decrypt(encrypted_key.encode()).decode()
 
 class SmartInterpreter:
     """Built-in natural language interpreter - no API keys needed!"""
@@ -16,59 +34,49 @@ class SmartInterpreter:
         
         # ===== DERIVATIVE PATTERNS =====
         derive_patterns = [
-            r'derive\s+(.+?)($|\s+(with respect to|w\.?r\.?t\.?)\s+([a-z])$)',
-            r'derivative\s+of\s+(.+?)($|\s+(with respect to|w\.?r\.?t\.?)\s+([a-z])$)',
-            r'differentiate\s+(.+?)($|\s+(with respect to|w\.?r\.?t\.?)\s+([a-z])$)',
-            r'what( is|'')s the derivative of (.+)',
-            r'find (the )?derivative of (.+)',
-            r'^d/d([a-z])\s*\(\s*(.+?)\s*\)$',  # d/dx (x^2)
+            (r'derive\s+(.+?)(?:\s+with respect to\s+([a-z]))?$', 'derive'),
+            (r'derivative\s+of\s+(.+?)(?:\s+with respect to\s+([a-z]))?$', 'derive'),
+            (r'differentiate\s+(.+?)(?:\s+with respect to\s+([a-z]))?$', 'derive'),
+            (r'what(?:\s+is)?\s+the\s+derivative\s+of\s+(.+?)$', 'derive'),
+            (r'find\s+(?:the\s+)?derivative\s+of\s+(.+?)$', 'derive'),
+            (r'^d/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dx'),
         ]
         
-        for pattern in derive_patterns:
+        for pattern, cmd_type in derive_patterns:
             match = re.search(pattern, user_text)
             if match:
-                groups = match.groups()
-                if 'd/d' in pattern:
-                    # Handle d/dx format
-                    var = groups[0]
-                    expr = groups[1]
-                elif len(groups) >= 4 and groups[3]:
-                    # Has variable specified
-                    expr = groups[0] or groups[1] or groups[2]
-                    var = groups[3]
+                if cmd_type == 'derive_dx':
+                    var = match.group(1)
+                    expr = match.group(2)
                 else:
-                    # Just the expression
-                    expr = groups[0] or groups[1] or groups[2]
-                    var = 'x'
+                    expr = match.group(1)
+                    var = match.group(2) if len(match.groups()) > 1 and match.group(2) else 'x'
                 
                 return {
                     "command": "derive",
                     "expression": expr.strip(),
-                    "explanation": f"Finding derivative with respect to {var}",
+                    "explanation": f"Derivative with respect to {var}",
+                    "variable": var,
                     "confidence": "high"
                 }
         
         # ===== INTEGRAL PATTERNS =====
         integral_patterns = [
-            r'integrate\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)($|\s+with respect to ([a-z])$)',
-            r'integral\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)($|\s+with respect to ([a-z])$)',
-            r'∫\s*(.+?)\s*d([a-z])\s*from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
-            r'integrate\s+(.+?)($|\s+with respect to ([a-z])$)',
-            r'indefinite integral of (.+)',
-            r'what( is|'')s the integral of (.+)',
-            r'find (the )?integral of (.+)',
+            (r'integrate\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+with respect to\s+([a-z]))?$', 'definite'),
+            (r'integral\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+with respect to\s+([a-z]))?$', 'definite'),
+            (r'∫\s*(.+?)\s*d([a-z])\s*from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'definite_unicode'),
+            (r'integrate\s+(.+?)(?:\s+with respect to\s+([a-z]))?$', 'indefinite'),
+            (r'indefinite\s+integral\s+of\s+(.+?)(?:\s+with respect to\s+([a-z]))?$', 'indefinite'),
+            (r'what(?:\s+is)?\s+the\s+integral\s+of\s+(.+?)$', 'indefinite'),
         ]
         
-        for pattern in integral_patterns:
+        for pattern, int_type in integral_patterns:
             match = re.search(pattern, user_text)
             if match:
-                groups = match.groups()
-                if len(groups) >= 4 and groups[1] and groups[2]:
-                    # Has limits
-                    expr = groups[0]
-                    a = groups[1]
-                    b = groups[2]
-                    var = groups[4] if len(groups) >= 5 and groups[4] else 'x'
+                if int_type == 'definite':
+                    expr = match.group(1)
+                    a, b = match.group(2), match.group(3)
+                    var = match.group(4) if len(match.groups()) >= 4 and match.group(4) else 'x'
                     return {
                         "command": "integrate",
                         "expression": expr.strip(),
@@ -77,10 +85,21 @@ class SmartInterpreter:
                         "variable": var,
                         "confidence": "high"
                     }
-                else:
-                    # Indefinite integral
-                    expr = groups[0] or groups[1] or groups[2]
-                    var = groups[-1] if groups[-1] and groups[-1].isalpha() else 'x'
+                elif int_type == 'definite_unicode':
+                    expr = match.group(1)
+                    var = match.group(2)
+                    a, b = match.group(3), match.group(4)
+                    return {
+                        "command": "integrate",
+                        "expression": expr.strip(),
+                        "explanation": f"Definite integral from {a} to {b}",
+                        "limits": [a, b],
+                        "variable": var,
+                        "confidence": "high"
+                    }
+                else:  # indefinite
+                    expr = match.group(1)
+                    var = match.group(2) if len(match.groups()) > 1 and match.group(2) else 'x'
                     return {
                         "command": "integrate",
                         "expression": expr.strip(),
@@ -91,23 +110,22 @@ class SmartInterpreter:
         
         # ===== LIMIT PATTERNS =====
         limit_patterns = [
-            r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity]+)',
-            r'lim\s*([a-z])\s*(?:->|→)\s*([0-9.infinity]+)\s+(.+?)$',
-            r'what( is|'')s the limit of (.+) as ([a-z]) (?:->|→|approaches|to) ([0-9.infinity]+)',
+            (r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity]+)', 'standard'),
+            (r'lim\s*([a-z])\s*(?:->|→)\s*([0-9.infinity]+)\s+(.+?)$', 'lim_format'),
+            (r'what(?:\s+is)?\s+the\s+limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity]+)', 'standard'),
         ]
         
-        for pattern in limit_patterns:
+        for pattern, lim_type in limit_patterns:
             match = re.search(pattern, user_text)
             if match:
-                groups = match.groups()
-                if 'lim' in pattern:
-                    var = groups[0]
-                    approach = groups[1]
-                    expr = groups[2]
+                if lim_type == 'lim_format':
+                    var = match.group(1)
+                    approach = match.group(2)
+                    expr = match.group(3)
                 else:
-                    expr = groups[0]
-                    var = groups[1]
-                    approach = groups[2]
+                    expr = match.group(1)
+                    var = match.group(2)
+                    approach = match.group(3)
                 
                 return {
                     "command": "limit",
@@ -120,18 +138,17 @@ class SmartInterpreter:
         
         # ===== SERIES PATTERNS =====
         series_patterns = [
-            r'series\s+of\s+(.+?)\s+about\s+([0-9.-]+)($|\s+order\s+([0-9]+))',
-            r'taylor\s+series\s+of\s+(.+?)\s+about\s+([0-9.-]+)($|\s+order\s+([0-9]+))',
-            r'expand\s+(.+?)\s+around\s+([0-9.-]+)',
+            (r'series\s+of\s+(.+?)\s+about\s+([0-9.-]+)(?:\s+order\s+([0-9]+))?', 'standard'),
+            (r'taylor\s+series\s+of\s+(.+?)\s+about\s+([0-9.-]+)(?:\s+order\s+([0-9]+))?', 'standard'),
+            (r'expand\s+(.+?)\s+around\s+([0-9.-]+)(?:\s+order\s+([0-9]+))?', 'standard'),
         ]
         
-        for pattern in series_patterns:
+        for pattern, ser_type in series_patterns:
             match = re.search(pattern, user_text)
             if match:
-                groups = match.groups()
-                expr = groups[0]
-                about = groups[1]
-                order = groups[3] if len(groups) >= 4 and groups[3] else '6'
+                expr = match.group(1)
+                about = match.group(2)
+                order = match.group(3) if len(match.groups()) >= 3 and match.group(3) else '6'
                 
                 return {
                     "command": "series",
@@ -144,32 +161,32 @@ class SmartInterpreter:
         
         # ===== CALCULATION PATTERNS =====
         calc_patterns = [
-            r'^(what is|calculate|compute|solve|find)\s+(.+?)$',
-            r'^(.+?)\s*=\s*$',
-            r'^(.+?)\??$',
+            (r'^(?:what\s+is|calculate|compute|solve|find)\s+(.+?)$', 'standard'),
+            (r'^(.+?)\s*=\s*$', 'equation'),
+            (r'^(.+?)\??$', 'question'),
         ]
         
-        for pattern in calc_patterns:
+        for pattern, calc_type in calc_patterns:
             match = re.search(pattern, user_text)
             if match:
-                expr = match.groups()[-1]
+                expr = match.group(1)
                 # Check if it looks like a math expression
-                if any(c in expr for c in ['+', '-', '*', '/', '^', '**', 'sin', 'cos', 'tan', 'log', 'sqrt']):
+                if any(c in expr for c in ['+', '-', '*', '/', '^', '**', 'sin', 'cos', 'tan', 'log', 'sqrt', 'exp']):
                     return {
                         "command": "calc",
                         "expression": expr.strip(),
                         "explanation": f"Calculating expression",
-                        "confidence": "medium"
+                        "confidence": "medium" if calc_type == 'question' else "high"
                     }
         
         # ===== PLOTTING PATTERNS =====
         plot_patterns = [
-            r'plot\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
-            r'graph\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
-            r'draw\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
+            (r'plot\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'standard'),
+            (r'graph\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'standard'),
+            (r'draw\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'standard'),
         ]
         
-        for pattern in plot_patterns:
+        for pattern, plot_type in plot_patterns:
             match = re.search(pattern, user_text)
             if match:
                 expr = match.group(1)
@@ -187,49 +204,51 @@ class SmartInterpreter:
         
         # ===== ODE PATTERNS =====
         ode_patterns = [
-            r'solve\s+ode\s+(.+?)$',
-            r'differential equation\s+(.+?)$',
-            r'^(y\'\'?\s*\+\s*.+?=0)$',
+            (r'solve\s+ode\s+(.+?)$', 'standard'),
+            (r'differential\s+equation\s+(.+?)$', 'standard'),
+            (r'^(y\'\'?[\s+].+?=0)$', 'ode_format'),
         ]
         
-        for pattern in ode_patterns:
+        for pattern, ode_type in ode_patterns:
             match = re.search(pattern, user_text)
             if match:
                 ode = match.group(1)
                 return {
                     "command": "ode",
                     "expression": ode.strip(),
-                    "explanation": f"Solving differential equation",
+                    "explanation": "Solving differential equation",
                     "confidence": "high"
                 }
         
         # ===== MATRIX PATTERNS =====
         matrix_patterns = [
-            r'matrix\s+multiply\s+(.+?)\s+and\s+(.+?)$',
-            r'multiply\s+matrices\s+(.+?)\s+and\s+(.+?)$',
-            r'(\[\[.+\]\])\s*\*\s*(\[\[.+\]\])',
+            (r'matrix\s+multiply\s+(.+?)\s+and\s+(.+?)$', 'multiply'),
+            (r'multiply\s+matrices\s+(.+?)\s+and\s+(.+?)$', 'multiply'),
+            (r'(\[\[.+\]\])\s*\*\s*(\[\[.+\]\])', 'multiply_symbol'),
         ]
         
-        for pattern in matrix_patterns:
+        for pattern, mat_type in matrix_patterns:
             match = re.search(pattern, user_text)
             if match:
-                if len(match.groups()) == 2:
-                    A, B = match.groups()
-                    return {
-                        "command": "matrix",
-                        "expression": f"{A} * {B}",
-                        "explanation": f"Multiplying matrices",
-                        "confidence": "high"
-                    }
+                if mat_type == 'multiply_symbol':
+                    A, B = match.group(1), match.group(2)
+                else:
+                    A, B = match.group(1), match.group(2)
+                return {
+                    "command": "matrix",
+                    "expression": f"{A} * {B}",
+                    "explanation": "Multiplying matrices",
+                    "confidence": "high"
+                }
         
         # ===== UNIT CONVERSION PATTERNS =====
         unit_patterns = [
-            r'convert\s+([0-9.]+)\s*([a-z]+)\s+to\s+([a-z]+)',
-            r'([0-9.]+)\s*([a-z]+)\s+in\s+([a-z]+)',
-            r'([0-9.]+)\s*([a-z]+)\s+to\s+([a-z]+)',
+            (r'convert\s+([0-9.]+)\s*([a-z/]+)\s+to\s+([a-z/]+)', 'standard'),
+            (r'([0-9.]+)\s*([a-z/]+)\s+in\s+([a-z/]+)', 'standard'),
+            (r'([0-9.]+)\s*([a-z/]+)\s+to\s+([a-z/]+)', 'standard'),
         ]
         
-        for pattern in unit_patterns:
+        for pattern, unit_type in unit_patterns:
             match = re.search(pattern, user_text)
             if match:
                 value = match.group(1)
@@ -245,30 +264,31 @@ class SmartInterpreter:
         
         # ===== STATISTICS PATTERNS =====
         stat_patterns = [
-            r'statistics?\s+of\s+([0-9,\s]+)',
-            r'mean\s+of\s+([0-9,\s]+)',
-            r'average\s+of\s+([0-9,\s]+)',
+            (r'statistics?\s+of\s+([0-9,\s]+)', 'standard'),
+            (r'mean\s+of\s+([0-9,\s]+)', 'mean'),
+            (r'average\s+of\s+([0-9,\s]+)', 'mean'),
+            (r'median\s+of\s+([0-9,\s]+)', 'median'),
         ]
         
-        for pattern in stat_patterns:
+        for pattern, stat_type in stat_patterns:
             match = re.search(pattern, user_text)
             if match:
                 data = match.group(1)
                 return {
                     "command": "stat",
                     "expression": data,
-                    "explanation": f"Calculating statistics",
+                    "explanation": f"Calculating {stat_type if stat_type != 'standard' else 'statistics'}",
                     "confidence": "medium"
                 }
         
-        # ===== FALLBACK =====
-        # If nothing matched, try to extract a simple expression
-        simple_expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)]', '', user_text)
+        # ===== SIMPLE EXTRACTION FALLBACK =====
+        # Try to extract a simple expression
+        simple_expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)\.]', '', user_text)
         if simple_expr and any(c in simple_expr for c in ['+', '-', '*', '/', '^']):
             return {
                 "command": "calc",
                 "expression": simple_expr.strip(),
-                "explanation": f"Calculating expression",
+                "explanation": "Calculating expression",
                 "confidence": "low"
             }
         
@@ -280,7 +300,7 @@ class SmartInterpreter:
             "confidence": "none"
         }
 
-# Simple wrapper to maintain compatibility with existing code
+# Wrapper class for compatibility
 class LLMHandler:
     """Built-in smart interpreter - no API keys required!"""
     
@@ -293,7 +313,8 @@ class LLMHandler:
         result = self.interpreter.interpret(user_text)
         return result.get("explanation", "")
 
+# Main function called by bot.py
 def interpret_math_query(user_text, llm_handler=None):
-    """Main function called by bot.py"""
+    """Interpret natural language math queries"""
     interpreter = SmartInterpreter()
     return interpreter.interpret(user_text)
