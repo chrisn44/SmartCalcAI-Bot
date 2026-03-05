@@ -5,6 +5,11 @@ import google.generativeai as genai
 import anthropic
 from cryptography.fernet import Fernet
 from config import ENCRYPTION_KEY
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Encryption setup
 cipher = Fernet(ENCRYPTION_KEY)
@@ -23,38 +28,38 @@ class LLMHandler:
     def __init__(self, provider: str, api_key: str):
         self.provider = provider
         self.api_key = api_key
+        logger.info(f"Initializing LLM handler for provider: {provider}")
         
-        if provider == 'openai':
-            openai.api_key = api_key
-        elif provider == 'gemini':
-            genai.configure(api_key=api_key)
-        elif provider == 'claude':
-            self.client = anthropic.Anthropic(api_key=api_key)
-        else:
-            raise ValueError(f"Unsupported provider: {provider}")
-    
     def ask(self, prompt: str, max_tokens=500) -> str:
         """Send prompt to LLM and return response."""
         try:
             if self.provider == 'openai':
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",  # Use gpt-3.5-turbo for lower cost
+                from openai import OpenAI
+                client = OpenAI(api_key=self.api_key)
+                
+                logger.info("Sending request to OpenAI...")
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a math assistant. Respond only with valid JSON."},
+                        {"role": "system", "content": "You are a math assistant. Convert questions to JSON format only."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.2,
+                    temperature=0.1,  # Lower temperature for more consistent JSON
                     max_tokens=max_tokens
                 )
-                return response.choices[0].message.content
+                result = response.choices[0].message.content
+                logger.info(f"OpenAI response: {result}")
+                return result
                 
             elif self.provider == 'gemini':
+                genai.configure(api_key=self.api_key)
                 model = genai.GenerativeModel('gemini-pro')
                 response = model.generate_content(prompt)
                 return response.text
                 
             elif self.provider == 'claude':
-                response = self.client.messages.create(
+                client = anthropic.Anthropic(api_key=self.api_key)
+                response = client.messages.create(
                     model="claude-3-haiku-20240307",
                     max_tokens=max_tokens,
                     messages=[{"role": "user", "content": prompt}]
@@ -62,69 +67,103 @@ class LLMHandler:
                 return response.content[0].text
                 
         except Exception as e:
+            logger.error(f"LLM API error: {str(e)}")
             return f"Error: {str(e)}"
 
 def interpret_math_query(user_text: str, llm_handler: LLMHandler) -> dict:
     """Use LLM to convert natural language to structured response."""
     
-    prompt = f"""You are a math assistant. Convert this question into a command.
+    # Create a very explicit prompt
+    prompt = f"""Convert this math question to a JSON object.
 
 Question: "{user_text}"
 
-Respond with ONLY a JSON object in this exact format:
+You MUST respond with ONLY this JSON format, nothing else:
 {{
-    "expression": "the math expression",
-    "explanation": "brief explanation",
-    "command": "command_name"
+    "expression": "the math expression using ** for power",
+    "explanation": "short explanation",
+    "command": "one command from list"
 }}
 
-Available commands: calc, derive, integrate, limit, series, ode, laplace, fourier, gradient, divergence, curl, fsolve, quad, minimize, plot, matrix, inverse, det, unit, stat, regress, ttest, correlate
+Commands: derive, integrate, limit, series, calc, ode, laplace, plot
 
 Examples:
-- "derivative of x squared" → {{"expression": "x**2", "explanation": "Derivative of x² is 2x", "command": "derive"}}
-- "integrate x^2 from 0 to 1" → {{"expression": "x**2", "explanation": "Integral from 0 to 1 is 1/3", "command": "integrate"}}
-- "solve x + 5 = 10" → {{"expression": "x + 5 = 10", "explanation": "x = 5", "command": "calc"}}
+Question: "derivative of x squared"
+Response: {{"expression": "x**2", "explanation": "derivative is 2x", "command": "derive"}}
 
-Return ONLY the JSON, no other text."""
+Question: "integrate x^2 from 0 to 1"
+Response: {{"expression": "x**2", "explanation": "integral is 1/3", "command": "integrate"}}
+
+Question: "what is 2+2"
+Response: {{"expression": "2+2", "explanation": "equals 4", "command": "calc"}}
+
+Now convert this question: "{user_text}"
+"""
     
     try:
+        # Get response from LLM
         response = llm_handler.ask(prompt)
-        print(f"Raw LLM response: {response}")  # For debugging
+        logger.info(f"Raw response: {response}")
         
-        # Clean the response - remove markdown code blocks if present
-        if response.startswith('```json'):
-            response = response[7:]
-        if response.startswith('```'):
-            response = response[3:]
-        if response.endswith('```'):
-            response = response[:-3]
-        
-        # Try to parse JSON
-        response = response.strip()
-        data = json.loads(response)
-        
-        # Validate required fields
-        if not all(k in data for k in ['expression', 'explanation', 'command']):
+        if not response or response.startswith("Error:"):
             return {
                 "expression": None,
-                "explanation": "Invalid response format from AI",
+                "explanation": "AI service error. Please try again later.",
                 "command": "none"
             }
-            
+        
+        # Clean the response - remove any markdown or extra text
+        response = response.strip()
+        
+        # Try to find JSON in the response
+        import re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            response = json_match.group()
+        
+        # Remove any markdown code blocks
+        response = response.replace('```json', '').replace('```', '')
+        response = response.strip()
+        
+        logger.info(f"Cleaned response: {response}")
+        
+        # Try to parse JSON
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            # Try to fix common issues
+            response = response.replace("'", '"')  # Replace single quotes with double
+            try:
+                data = json.loads(response)
+            except:
+                # If still failing, return fallback
+                return {
+                    "expression": None,
+                    "explanation": "I couldn't understand that. Try using a command like /derive or /integrate",
+                    "command": "none"
+                }
+        
+        # Validate required fields
+        if not isinstance(data, dict):
+            return {
+                "expression": None,
+                "explanation": "Invalid response format",
+                "command": "none"
+            }
+        
+        # Ensure all required fields exist
+        required_fields = ['expression', 'explanation', 'command']
+        for field in required_fields:
+            if field not in data:
+                data[field] = "" if field != 'command' else "none"
+        
         return data
         
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error: {e}")
-        # Fallback: try to extract information from the response
-        return {
-            "expression": None,
-            "explanation": f"I couldn't understand that. Try using a command like /derive or /integrate",
-            "command": "none"
-        }
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logger.error(f"Unexpected error in interpret_math_query: {str(e)}")
         return {
             "expression": None,
-            "explanation": f"Error processing your request",
+            "explanation": f"Error processing your request: {str(e)}",
             "command": "none"
         }
