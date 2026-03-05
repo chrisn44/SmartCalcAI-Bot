@@ -22,14 +22,14 @@ def add_sat_handlers(app):
     # Probability
     app.add_handler(CommandHandler("prob", sat_commands.prob_command))
     
-    # Trigonometry (renamed from trig-solve)
+    # Trigonometry
     app.add_handler(CommandHandler("trig", sat_commands.trig_command))
     
     # Complex Numbers
     app.add_handler(CommandHandler("complex", sat_commands.complex_command))
-    app.add_handler(CommandHandler("polar", sat_commands.polar_command))  # renamed
+    app.add_handler(CommandHandler("polar", sat_commands.polar_command))
     
-    # Geometry (using underscores instead of hyphens)
+    # Geometry
     app.add_handler(CommandHandler("circle_area", sat_commands.circle_area_command))
     app.add_handler(CommandHandler("circle_circ", sat_commands.circle_circumference_command))
     app.add_handler(CommandHandler("sphere_volume", sat_commands.sphere_volume_command))
@@ -37,6 +37,12 @@ def add_sat_handlers(app):
     app.add_handler(CommandHandler("rectangle_area", sat_commands.rectangle_area_command))
     app.add_handler(CommandHandler("triangle_area", sat_commands.triangle_area_command))
     app.add_handler(CommandHandler("pythagorean", sat_commands.pythagorean_command))
+    
+    # Curve Fitting (Premium)
+    app.add_handler(CommandHandler("fit", sat_commands.fit_command))
+    
+    # PDF Export (Premium)
+    app.add_handler(CommandHandler("exportpdf", sat_commands.exportpdf_command))
     
     # Test Generator (Premium)
     app.add_handler(CommandHandler("test", sat_commands.test_command))
