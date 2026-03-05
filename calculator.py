@@ -83,71 +83,82 @@ def series_expansion(expr_str, var='x', about=0, n=6):
     return steps, series
 
 # ========== Differential Equations ==========
-def solve_ode(ode_str, func='f', var='x'):
+def solve_ode(ode_str, func='y', var='x'):
     """Solve ordinary differential equation.
     Formats accepted:
-    - "f'' + f = 0"
+    - "y'' + y = 0"
     - "y'' + 2*y' + y = 0"
-    - "Derivative(f(x), x, 2) + f(x)"
-    - "diff(f(x), x, 2) + f(x)"
+    - "y' = y"
     """
     var_sym = sp.Symbol(var)
     f_sym = sp.Function(func)
     
+    steps = [f"📝 ODE: {ode_str}"]
+    
     try:
-        # Try different approaches
-        steps = [f"📝 ODE: {ode_str}"]
+        # Clean the input string
+        ode_str = ode_str.strip()
         
-        # Method 1: Try parsing with f(x) as the function
+        # Method 1: Direct substitution with proper escaping
         try:
-            local_dict = {func: f_sym(var_sym)}
-            # Replace common notation
-            expr_str = ode_str.replace(f"{func}''", f"Derivative({func}({var}), {var}, 2)")
-            expr_str = expr_str.replace(f"{func}'", f"Derivative({func}({var}), {var})")
-            expr_str = expr_str.replace('= 0', '=0').replace(' =0', '=0')
+            # Replace derivative notation with Derivative
+            # Handle y'' -> Derivative(y(x), x, 2)
+            import re
             
+            # Pattern to match y'', y', etc.
+            # Use raw strings to avoid escape issues
+            pattern = r"([a-zA-Z])('*)"
+            
+            def replace_derivative(match):
+                func_name = match.group(1)
+                primes = match.group(2)
+                if len(primes) == 2:
+                    return f"Derivative({func_name}({var}), {var}, 2)"
+                elif len(primes) == 1:
+                    return f"Derivative({func_name}({var}), {var})"
+                else:
+                    return func_name
+            
+            # Replace all derivatives
+            expr_str = re.sub(pattern, replace_derivative, ode_str)
+            
+            # Add =0 if missing
+            if '=' not in expr_str:
+                expr_str += ' = 0'
+            
+            # Create local dictionary for parsing
+            local_dict = {
+                func: f_sym(var_sym),
+                'Derivative': sp.Derivative
+            }
+            
+            # Parse the expression
             expr = safe_parse(expr_str, local_dict=local_dict)
+            
+            # Ensure it's an equation
             if not isinstance(expr, sp.Eq):
                 expr = sp.Eq(expr, 0)
-        except:
-            # Method 2: Try with diff notation
+                
+        except Exception as e1:
+            # Method 2: Try with explicit function notation
             try:
-                local_dict = {
-                    func: f_sym(var_sym),
-                    'diff': sp.diff,
-                    'Derivative': sp.Derivative
-                }
-                expr = safe_parse(ode_str, local_dict=local_dict)
+                # Convert y'' to Derivative(y(x), x, 2)
+                func_call = f"{func}({var})"
+                expr_str = ode_str.replace(f"{func}''", f"Derivative({func_call}, {var}, 2)")
+                expr_str = expr_str.replace(f"{func}'", f"Derivative({func_call}, {var})")
+                
+                if '=' not in expr_str:
+                    expr_str += ' = 0'
+                
+                local_dict = {func: f_sym(var_sym)}
+                expr = safe_parse(expr_str, local_dict=local_dict)
+                
                 if not isinstance(expr, sp.Eq):
                     expr = sp.Eq(expr, 0)
-            except:
-                # Method 3: Manual parsing for simple cases
-                if "''" in ode_str or "'" in ode_str:
-                    # Replace y'' with Derivative(y(x), x, 2)
-                    import re
                     
-                    # Handle y'' + y = 0 format
-                    def replace_derivatives(match):
-                        full = match.group(0)
-                        if "''" in full:
-                            return f"Derivative({func}({var}), {var}, 2)"
-                        elif "'" in full:
-                            return f"Derivative({func}({var}), {var})"
-                        return full
-                    
-                    pattern = re.escape(func) + r"('*)"
-                    expr_str = re.sub(pattern, replace_derivatives, ode_str)
-                    
-                    # Add =0 if missing
-                    if '=' not in expr_str:
-                        expr_str += ' = 0'
-                    
-                    local_dict = {func: f_sym(var_sym)}
-                    expr = safe_parse(expr_str, local_dict=local_dict)
-                    if not isinstance(expr, sp.Eq):
-                        expr = sp.Eq(expr, 0)
-                else:
-                    raise ValueError("Could not parse ODE format")
+            except Exception as e2:
+                # Method 3: Simplest approach - let the user know the format
+                raise ValueError(f"Could not parse ODE. Please use format like: y'' + y = 0")
         
         # Solve the ODE
         solution = sp.dsolve(expr, f_sym(var_sym))
@@ -155,7 +166,7 @@ def solve_ode(ode_str, func='f', var='x'):
         return steps, solution
         
     except Exception as e:
-        raise ValueError(f"ODE solving failed: {e}\nTry formats like: y'' + y = 0 or f'' + f = 0")
+        raise ValueError(f"ODE solving failed: {e}\nPlease use format: y'' + y = 0")
 
 # ========== Transforms ==========
 def laplace_transform(expr_str, var='t', s_var='s'):
