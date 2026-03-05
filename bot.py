@@ -421,51 +421,39 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• `/ode y'' + y = 0`\n"
             "• `/ode y'' + 2*y' + y = 0`\n"
             "• `/ode y' = y`\n"
-            "• `/ode y'' - y = 0, y(0)=1, y'(0)=0`\n\n"
+            "• `/ode y'' - 4*y = 0`\n\n"
             "**Notes:**\n"
-            "• Use `''` for second derivative, `'` for first derivative\n"
+            "• Use `''` for second derivative\n"
+            "• Use `'` for first derivative\n"
             "• Always include the `=` sign\n"
-            "• Initial conditions can be added after a comma",
+            "• Use `*` for multiplication (e.g., `2*y` not `2y`)",
             parse_mode='Markdown'
         )
         return
     
     try:
-        # Check if initial conditions are provided
-        steps = []
-        solution = None
-        
-        if ',' in text:
-            # Has initial conditions
-            parts = [p.strip() for p in text.split(',')]
-            ode_str = parts[0]
-            ics = {}
-            
-            # Parse initial conditions
-            for ic in parts[1:]:
-                ic = ic.strip()
-                # Format: y(0)=1 or y'(0)=0
-                import re
-                match = re.match(r"([a-z]'?\([0-9.-]+\))\s*=\s*(.+)", ic)
-                if match:
-                    ics[match.group(1)] = float(match.group(2))
-            
-            steps, solution = calculator.solve_ode(ode_str)
-            # Note: Would need to apply initial conditions
-            # This is a simplified version
+        # Detect the function name (y, f, etc.)
+        import re
+        match = re.match(r"([a-zA-Z])'", text)
+        if match:
+            func_name = match.group(1)
         else:
-            steps, solution = calculator.solve_ode(text)
+            func_name = 'y'  # default
         
-        await reply_with_steps(update, steps, solution)
+        steps, solution = calculator.solve_ode(text, func=func_name)
+        
+        # Format the response
+        response = f"{steps[0]}\n\n{steps[1]}"
+        await update.message.reply_text(response, parse_mode='Markdown')
         history.add_history(update.effective_user.id, "ode", text, str(solution))
         
     except Exception as e:
         await update.message.reply_text(
             f"❌ Error: {e}\n\n"
-            f"Try these formats:\n"
+            f"Try these exact formats:\n"
             f"• `/ode y'' + y = 0`\n"
-            f"• `/ode y'' + 2*y' + y = 0`\n"
-            f"• `/ode y' = y`",
+            f"• `/ode y' = y`\n"
+            f"• `/ode y'' + 2*y' + y = 0`",
             parse_mode='Markdown'
         )
 
