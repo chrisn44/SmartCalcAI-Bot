@@ -8,7 +8,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN", "YOUR_PROVIDER_TOKEN_HERE")
 
 # Encryption key for API keys – generate once and keep secret
-# Generate with: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
 
 # Database file
@@ -23,3 +22,6 @@ STAR_PRICES = {
 
 # Free tier daily limit (0 = unlimited)
 FREE_DAILY_LIMIT = 10
+
+# Owner Telegram ID (get from @userinfobot)
+OWNER_ID = 123456789  # ← REPLACE WITH YOUR ACTUAL USER ID
