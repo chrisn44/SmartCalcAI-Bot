@@ -84,11 +84,8 @@ def series_expansion(expr_str, var='x', about=0, n=6):
 
 # ========== Differential Equations ==========
 def solve_ode(ode_str, func='y', var='x'):
-    """Solve ordinary differential equation.
-    Formats accepted:
-    - "y'' + y = 0"
-    - "y'' + 2*y' + y = 0"
-    - "y' = y"
+    """Solve ordinary differential equation using SymPy's direct parser.
+    Format: "y'' + y = 0" or "Derivative(y(x), x, 2) + y(x) = 0"
     """
     var_sym = sp.Symbol(var)
     f_sym = sp.Function(func)
@@ -96,69 +93,41 @@ def solve_ode(ode_str, func='y', var='x'):
     steps = [f"📝 ODE: {ode_str}"]
     
     try:
-        # Clean the input string
-        ode_str = ode_str.strip()
+        # Create the function call string
+        func_call = f"{func}({var})"
         
-        # Method 1: Direct substitution with proper escaping
-        try:
-            # Replace derivative notation with Derivative
-            # Handle y'' -> Derivative(y(x), x, 2)
-            import re
-            
-            # Pattern to match y'', y', etc.
-            # Use raw strings to avoid escape issues
-            pattern = r"([a-zA-Z])('*)"
-            
-            def replace_derivative(match):
-                func_name = match.group(1)
-                primes = match.group(2)
-                if len(primes) == 2:
-                    return f"Derivative({func_name}({var}), {var}, 2)"
-                elif len(primes) == 1:
-                    return f"Derivative({func_name}({var}), {var})"
-                else:
-                    return func_name
-            
-            # Replace all derivatives
-            expr_str = re.sub(pattern, replace_derivative, ode_str)
-            
-            # Add =0 if missing
-            if '=' not in expr_str:
-                expr_str += ' = 0'
-            
-            # Create local dictionary for parsing
-            local_dict = {
-                func: f_sym(var_sym),
-                'Derivative': sp.Derivative
-            }
-            
-            # Parse the expression
-            expr = safe_parse(expr_str, local_dict=local_dict)
-            
-            # Ensure it's an equation
-            if not isinstance(expr, sp.Eq):
-                expr = sp.Eq(expr, 0)
-                
-        except Exception as e1:
-            # Method 2: Try with explicit function notation
-            try:
-                # Convert y'' to Derivative(y(x), x, 2)
-                func_call = f"{func}({var})"
-                expr_str = ode_str.replace(f"{func}''", f"Derivative({func_call}, {var}, 2)")
-                expr_str = expr_str.replace(f"{func}'", f"Derivative({func_call}, {var})")
-                
-                if '=' not in expr_str:
-                    expr_str += ' = 0'
-                
-                local_dict = {func: f_sym(var_sym)}
-                expr = safe_parse(expr_str, local_dict=local_dict)
-                
-                if not isinstance(expr, sp.Eq):
-                    expr = sp.Eq(expr, 0)
-                    
-            except Exception as e2:
-                # Method 3: Simplest approach - let the user know the format
-                raise ValueError(f"Could not parse ODE. Please use format like: y'' + y = 0")
+        # Replace common notation with SymPy-compatible form
+        expr_str = ode_str
+        
+        # Handle y'' -> Derivative(y(x), x, 2)
+        expr_str = expr_str.replace(f"{func}''", f"Derivative({func_call}, {var}, 2)")
+        expr_str = expr_str.replace(f"{func}'", f"Derivative({func_call}, {var})")
+        
+        # Ensure proper multiplication notation
+        expr_str = expr_str.replace(f"{func}", func_call)
+        
+        # Add =0 if missing
+        if '=' not in expr_str:
+            expr_str += ' = 0'
+        
+        # Create local dictionary for parsing
+        local_dict = {
+            func: f_sym(var_sym),
+            'Derivative': sp.Derivative,
+            'sin': sp.sin,
+            'cos': sp.cos,
+            'tan': sp.tan,
+            'exp': sp.exp,
+            'log': sp.log,
+            'sqrt': sp.sqrt,
+        }
+        
+        # Parse the expression
+        expr = sp.sympify(expr_str, locals=local_dict)
+        
+        # Ensure it's an equation
+        if not isinstance(expr, sp.Eq):
+            expr = sp.Eq(expr, 0)
         
         # Solve the ODE
         solution = sp.dsolve(expr, f_sym(var_sym))
@@ -166,7 +135,23 @@ def solve_ode(ode_str, func='y', var='x'):
         return steps, solution
         
     except Exception as e:
-        raise ValueError(f"ODE solving failed: {e}\nPlease use format: y'' + y = 0")
+        # If that fails, try a more direct approach
+        try:
+            # Let SymPy parse it directly
+            expr = sp.sympify(ode_str, locals={
+                func: f_sym(var_sym),
+                'Derivative': sp.Derivative
+            })
+            
+            if not isinstance(expr, sp.Eq):
+                expr = sp.Eq(expr, 0)
+                
+            solution = sp.dsolve(expr, f_sym(var_sym))
+            steps.append(f"✅ Solution: {sp.latex(solution)}")
+            return steps, solution
+            
+        except Exception as e2:
+            raise ValueError(f"Could not parse ODE. Please use format like: y'' + y = 0")
 
 # ========== Transforms ==========
 def laplace_transform(expr_str, var='t', s_var='s'):
