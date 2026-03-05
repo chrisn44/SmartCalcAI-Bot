@@ -4,13 +4,25 @@ SmartCalcAI Bot - Complete Telegram Math Assistant
 All features included: free tier, premium with Stars, BYO LLM key
 """
 
+import os
 import logging
+import threading
+import re
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes, PreCheckoutQueryHandler, CallbackQueryHandler
 )
+
+# Add Flask for Railway web server
+try:
+    from flask import Flask
+    WEB_SERVER = True
+except ImportError:
+    WEB_SERVER = False
+    print("Flask not installed - web server disabled")
+
 import config
 import calculator
 import graphing
@@ -19,6 +31,22 @@ import matrix
 import stats
 import history
 from llm_integration import LLMHandler, interpret_math_query
+
+# Flask web server for Railway
+if WEB_SERVER:
+    web_app = Flask(__name__)
+    
+    @web_app.route('/')
+    def home():
+        return "SmartCalcAI Bot is running!"
+    
+    @web_app.route('/health')
+    def health():
+        return "OK", 200
+    
+    def run_web_server():
+        port = int(os.getenv("PORT", 8080))
+        web_app.run(host="0.0.0.0", port=port)
 
 # Initialize database
 history.init_db()
@@ -33,12 +61,26 @@ logger = logging.getLogger(__name__)
 # ========== Helper Functions ==========
 
 async def reply_with_steps(update, steps, result=None):
+    """Send steps as formatted text."""
     msg = ""
     for s in steps:
+        # Clean up any duplicate formatting
+        s = s.replace('**Result:**', '').replace('Result:', '')
         msg += s + "\n"
     if result is not None and not isinstance(result, str):
-        msg += f"\nResult: {result}"  # Removed Markdown formatting
-    await update.message.reply_text(msg)  # Removed parse_mode
+        # Only add result if it's not already in steps
+        result_str = str(result)
+        # Check if result is already in the last step
+        if result_str not in msg:
+            msg += f"\n**Result:** `{result_str}`"
+    # Remove any potential double spaces or formatting issues
+    msg = msg.replace('\n\n', '\n').strip()
+    try:
+        await update.message.reply_text(msg, parse_mode='Markdown')
+    except:
+        # Fallback to plain text if Markdown fails
+        plain_msg = msg.replace('*', '').replace('`', '').replace('_', '')
+        await update.message.reply_text(plain_msg)
 
 def check_free_limit(user_id):
     """Return True if user is premium or under daily limit."""
@@ -89,7 +131,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/derive x^3*sin(x)` – Derivatives with steps
 • `/integrate x^2 dx` – Indefinite integrals
 • `/integrate x^2 from 0 to 1` – Definite integrals
-• `/limit sin(x)/x as 0` – Limits
+• `/limit sin(x)/x as x 0` – Limits
 • `/series exp(x) about 0` – Series expansion
 • `/ode y'' + y = 0` – Differential equations
 • `/laplace sin(t)` – Laplace transforms
@@ -98,20 +140,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/divergence [x*y, y*z, z*x]` – Divergence
 • `/curl [x*y, y*z, z*x]` – Curl
 • `/fsolve x^2-2=0` – Numerical root finding
-• `/quad integrate x^2 0 1` – Numerical integration
+• `/quad x^2 0 1` – Numerical integration
 • `/minimize x^2+2x+1` – Minimization
 • `/plot sin(x) from -10 to 10` – 2D plotting
+• `/plotmulti sin(x), cos(x) from 0 to 10` – Multiple plots
 • `/matrix [[1,2],[3,4]] * [[0,1],[1,0]]` – Matrix multiply
 • `/inverse [[1,2],[3,4]]` – Matrix inverse
 • `/det [[1,2],[3,4]]` – Determinant
+• `/transpose [[1,2],[3,4]]` – Matrix transpose
+• `/eigen [[1,2],[3,4]]` – Eigenvalues
 • `/unit 100 km to miles` – Unit conversion
 • `/stat 1,2,3,4,5` – Basic statistics
 • `/regress 1,2,3 4,5,6` – Linear regression
-• `/ttest 1,2,3,4,5 0` – T-test
+• `/ttest 1,2,3,4,5 3` – T-test
+• `/correlate 1,2,3 4,5,6` – Correlation
 • `/history` – Your last calculations
 
 **💎 Premium Features** (unlock with /buy):
-• `/plot3d x*y from -5 to 5` – 3D surface plots
+• `/plot3d x*y from -5 to 5 for -5 to 5` – 3D surface plots
 • `/system x+y=5, 2x-y=1 for x,y` – System solver
 • `/fit a*exp(b*x)+c 1,2,3 2,4,8` – Curve fitting
 • `/exportpdf` – Export as PDF
@@ -132,13 +178,13 @@ Just send a math question – if you have an API key, I'll understand natural la
 """
     await update.message.reply_text(welcome, parse_mode='Markdown')
 
-# ========== Free Commands (with limit check) ==========
+# ========== Basic Math Commands ==========
 
 async def calc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     expr = ' '.join(context.args)
     if not expr:
-        await update.message.reply_text("Usage: /calc <expression>")
+        await update.message.reply_text("Usage: /calc <expression>\nExample: /calc 2+2")
         return
     try:
         steps, result = calculator.evaluate_expression(expr)
@@ -147,11 +193,13 @@ async def calc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ========== Calculus Commands ==========
+
 async def derive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     args = context.args
     if not args:
-        await update.message.reply_text("Usage: /derive <function> [variable]")
+        await update.message.reply_text("Usage: /derive <function> [variable]\nExample: /derive x^3*sin(x)")
         return
     var = 'x'
     if len(args) > 1 and args[-1].isalpha():
@@ -221,31 +269,123 @@ async def limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /limit <function> as <variable> <value>")
+        await update.message.reply_text(
+            "📐 **Limit Calculator**\n\n"
+            "Usage: `/limit <function> as <variable> <value>`\n"
+            "Examples:\n"
+            "• `/limit sin(x)/x as x 0`\n"
+            "• `/limit (1+1/x)^x as x infinity`\n"
+            "• `/limit ln(x) as x 1`",
+            parse_mode='Markdown'
+        )
         return
+    
     try:
-        # Parse: "sin(x)/x as x 0"
-        if " as " in text:
-            func_part, rest = text.split(" as ")
-            var_val = rest.split()
+        # Handle "as" keyword
+        if " as " in text.lower():
+            parts = text.lower().split(" as ")
+            func_part = parts[0].strip()
+            
+            # Get variable and approach value
+            var_val = parts[1].strip().split()
+            
             if len(var_val) == 2:
-                var, approach = var_val
-                approach = float(approach)
+                var = var_val[0]
+                approach_str = var_val[1]
+                
+                # Handle special cases like "infinity"
+                if approach_str in ['infinity', 'inf', '∞']:
+                    approach = float('inf')
+                else:
+                    try:
+                        approach = float(approach_str)
+                    except:
+                        await update.message.reply_text(f"❌ Invalid approach value: {approach_str}")
+                        return
+                
                 steps, result = calculator.limit_calc(func_part, var, approach)
                 await reply_with_steps(update, steps, result)
                 history.add_history(update.effective_user.id, "limit", text, str(result))
             else:
-                await update.message.reply_text("Format: /limit <function> as <variable> <value>")
+                await update.message.reply_text(
+                    "❌ Invalid format. Use: `/limit sin(x)/x as x 0`\n"
+                    "Make sure to include both the variable AND the value.",
+                    parse_mode='Markdown'
+                )
         else:
-            await update.message.reply_text("Format: /limit <function> as <variable> <value>")
+            await update.message.reply_text(
+                "❌ Missing 'as' keyword.\n"
+                "Correct format: `/limit sin(x)/x as x 0`",
+                parse_mode='Markdown'
+            )
+            
     except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}\n\nTry: `/limit sin(x)/x as x 0`", parse_mode='Markdown')
+
+async def series(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📈 **Series Expansion**\n\n"
+            "Usage: `/series <function> about <value> [order]`\n"
+            "Examples:\n"
+            "• `/series exp(x) about 0` (default order 6)\n"
+            "• `/series sin(x) about 0 8` (order 8)\n"
+            "• `/series ln(1+x) about 0 5`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        # Parse: "exp(x) about 0" or "exp(x) about 0 8"
+        if " about " in text.lower():
+            parts = text.lower().split(" about ")
+            func_str = parts[0].strip()
+            
+            # Get about value and optional order
+            about_parts = parts[1].strip().split()
+            
+            if len(about_parts) >= 1:
+                about_val = float(about_parts[0])
+                
+                # Default order is 6, or use provided order
+                order = 6
+                if len(about_parts) >= 2:
+                    order = int(about_parts[1])
+                
+                steps, result = calculator.series_expansion(func_str, about=about_val, n=order)
+                await reply_with_steps(update, steps, result)
+                history.add_history(update.effective_user.id, "series", text, str(result))
+            else:
+                await update.message.reply_text("Please specify the point to expand about.")
+        else:
+            await update.message.reply_text(
+                "❌ Missing 'about' keyword.\n"
+                "Correct format: `/series exp(x) about 0`",
+                parse_mode='Markdown'
+            )
+            
+    except ValueError as e:
         await update.message.reply_text(f"❌ Error: {e}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error parsing input. Use: /series exp(x) about 0")
+
+# ========== Differential Equations ==========
 
 async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /ode <ODE> [function] [variable]\nExample: /ode f'' + f = 0")
+        await update.message.reply_text(
+            "📊 **Ordinary Differential Equations**\n\n"
+            "Usage: `/ode <ODE>`\n"
+            "Examples:\n"
+            "• `/ode f'' + f = 0`\n"
+            "• `/ode y'' + 2y' + y = 0`\n"
+            "• `/ode f' = f`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, sol = calculator.solve_ode(text)
@@ -254,24 +394,95 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ========== Transforms ==========
+
 async def laplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /laplace <function> [variable=t] [s_var=s]")
+        await update.message.reply_text(
+            "⚡ **Laplace Transform**\n\n"
+            "Usage: `/laplace <function> [variable] [s_var]`\n"
+            "Examples:\n"
+            "• `/laplace sin(t)`\n"
+            "• `/laplace exp(-at) t s`",
+            parse_mode='Markdown'
+        )
         return
     try:
-        steps, result = calculator.laplace_transform(text)
+        # Parse arguments
+        parts = text.split()
+        if len(parts) == 1:
+            steps, result = calculator.laplace_transform(parts[0])
+        elif len(parts) == 2:
+            steps, result = calculator.laplace_transform(parts[0], parts[1])
+        else:
+            steps, result = calculator.laplace_transform(parts[0], parts[1], parts[2])
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "laplace", text, str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+async def inverse_laplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "⚡ **Inverse Laplace Transform**\n\n"
+            "Usage: `/invlaplace <function> [s_var] [t_var]`\n"
+            "Example: `/invlaplace 1/(s^2+1)`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        parts = text.split()
+        if len(parts) == 1:
+            steps, result = calculator.inverse_laplace_transform(parts[0])
+        elif len(parts) == 2:
+            steps, result = calculator.inverse_laplace_transform(parts[0], parts[1])
+        else:
+            steps, result = calculator.inverse_laplace_transform(parts[0], parts[1], parts[2])
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "invlaplace", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def fourier(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📊 **Fourier Transform**\n\n"
+            "Usage: `/fourier <function> [variable] [k_var]`\n"
+            "Example: `/fourier exp(-x^2)`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        parts = text.split()
+        if len(parts) == 1:
+            steps, result = calculator.fourier_transform(parts[0])
+        elif len(parts) == 2:
+            steps, result = calculator.fourier_transform(parts[0], parts[1])
+        else:
+            steps, result = calculator.fourier_transform(parts[0], parts[1], parts[2])
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "fourier", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== Vector Calculus ==========
+
 async def gradient(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /gradient <scalar field>")
+        await update.message.reply_text(
+            "📐 **Gradient**\n\n"
+            "Usage: `/gradient <scalar field>`\n"
+            "Example: `/gradient x^2*y + y*z`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = calculator.gradient(text)
@@ -284,7 +495,12 @@ async def divergence(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /divergence [x,y,z]")
+        await update.message.reply_text(
+            "📐 **Divergence**\n\n"
+            "Usage: `/divergence [F_x, F_y, F_z]`\n"
+            "Example: `/divergence [x*y, y*z, z*x]`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = calculator.divergence(text)
@@ -297,7 +513,12 @@ async def curl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /curl [x,y,z]")
+        await update.message.reply_text(
+            "📐 **Curl**\n\n"
+            "Usage: `/curl [F_x, F_y, F_z]`\n"
+            "Example: `/curl [x*y, y*z, z*x]`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = calculator.curl(text)
@@ -306,15 +527,22 @@ async def curl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ========== Numerical Methods ==========
+
 async def fsolve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /fsolve <equation> [guess]")
+        await update.message.reply_text(
+            "🔢 **Numerical Root Finding**\n\n"
+            "Usage: `/fsolve <equation> [guess]`\n"
+            "Example: `/fsolve x^2-2 1`",
+            parse_mode='Markdown'
+        )
         return
     try:
         parts = text.split()
-        if len(parts) > 1 and parts[-1].replace('.','').isdigit():
+        if len(parts) > 1 and parts[-1].replace('.','').replace('-','').isdigit():
             guess = float(parts[-1])
             expr = ' '.join(parts[:-1])
         else:
@@ -330,43 +558,130 @@ async def quad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /quad <function> <a> <b>")
+        await update.message.reply_text(
+            "📊 **Numerical Integration**\n\n"
+            "Usage: `/quad <function> <a> <b>`\n"
+            "Example: `/quad x^2 0 1`",
+            parse_mode='Markdown'
+        )
         return
     try:
         parts = text.split()
         if len(parts) >= 3:
-            expr = ' '.join(parts[:-2])
-            a, b = float(parts[-2]), float(parts[-1])
-            steps, result = calculator.quad_integral(expr, a=a, b=b)
-            await reply_with_steps(update, steps, result)
-            history.add_history(update.effective_user.id, "quad", text, str(result))
+            # Check if last two are numbers
+            try:
+                a = float(parts[-2])
+                b = float(parts[-1])
+                expr = ' '.join(parts[:-2])
+                steps, result = calculator.quad_integral(expr, a=a, b=b)
+                await reply_with_steps(update, steps, result)
+                history.add_history(update.effective_user.id, "quad", text, str(result))
+            except:
+                await update.message.reply_text("❌ Please specify numeric limits a and b")
         else:
             await update.message.reply_text("Usage: /quad <function> <a> <b>")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+async def minimize(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📉 **Minimization**\n\n"
+            "Usage: `/minimize <function> [guess]`\n"
+            "Example: `/minimize x^2+2x+1 0`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        parts = text.split()
+        if len(parts) > 1 and parts[-1].replace('.','').replace('-','').isdigit():
+            guess = float(parts[-1])
+            expr = ' '.join(parts[:-1])
+        else:
+            guess = 0.0
+            expr = text
+        steps, result = calculator.minimize(expr, guess=guess)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "minimize", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== Plotting Commands ==========
+
 async def plot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
+    if not text or " from " not in text or " to " not in text:
+        await update.message.reply_text(
+            "📈 **Function Plotter**\n\n"
+            "Usage: `/plot <function> from <min> to <max>`\n"
+            "Example: `/plot sin(x) from -10 to 10`",
+            parse_mode='Markdown'
+        )
+        return
     try:
-        if " from " in text and " to " in text:
-            func_str, range_str = text.split(" from ")
-            range_parts = range_str.split(" to ")
-            xmin = float(range_parts[0])
-            xmax = float(range_parts[1])
-            buf = graphing.plot_function(func_str, xmin, xmax)
-            await update.message.reply_photo(photo=buf, caption=f"Plot of {func_str}")
-            history.add_history(update.effective_user.id, "plot", text, "Plot generated")
-        else:
-            await update.message.reply_text("Please use format: /plot <function> from <min> to <max>")
+        parts = text.split(" from ")
+        func_str = parts[0].strip()
+        range_part = parts[1].strip()
+        range_parts = range_part.split(" to ")
+        
+        if len(range_parts) != 2:
+            await update.message.reply_text("Please specify both min and max values")
+            return
+            
+        xmin = float(range_parts[0].strip())
+        xmax = float(range_parts[1].strip())
+        
+        buf = graphing.plot_function(func_str, xmin, xmax)
+        await update.message.reply_photo(photo=buf, caption=f"📈 Plot of {func_str}")
+        history.add_history(update.effective_user.id, "plot", text, "Plot generated")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
+
+async def plotmulti(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text or " from " not in text or " to " not in text:
+        await update.message.reply_text(
+            "📈 **Multiple Function Plotter**\n\n"
+            "Usage: `/plotmulti <func1>, <func2> from <min> to <max>`\n"
+            "Example: `/plotmulti sin(x), cos(x) from 0 to 10`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        parts = text.split(" from ")
+        funcs_str = parts[0].strip()
+        range_part = parts[1].strip()
+        range_parts = range_part.split(" to ")
+        
+        if len(range_parts) != 2:
+            await update.message.reply_text("Please specify both min and max values")
+            return
+            
+        xmin = float(range_parts[0].strip())
+        xmax = float(range_parts[1].strip())
+        
+        buf = graphing.plot_multiple(funcs_str, xmin, xmax)
+        await update.message.reply_photo(photo=buf, caption=f"📈 Multiple functions plot")
+        history.add_history(update.effective_user.id, "plotmulti", text, "Plot generated")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== Matrix Commands ==========
 
 async def matrix_mult(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if '*' not in text:
-        await update.message.reply_text("Usage: /matrix <A> * <B>\nExample: /matrix [[1,2],[3,4]] * [[0,1],[1,0]]")
+        await update.message.reply_text(
+            "🔢 **Matrix Multiplication**\n\n"
+            "Usage: `/matrix <A> * <B>`\n"
+            "Example: `/matrix [[1,2],[3,4]] * [[0,1],[1,0]]`",
+            parse_mode='Markdown'
+        )
         return
     try:
         left, right = text.split('*')
@@ -380,7 +695,11 @@ async def inverse(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /inverse [[1,2],[3,4]]")
+        await update.message.reply_text(
+            "🔄 **Matrix Inverse**\n\n"
+            "Usage: `/inverse [[1,2],[3,4]]`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = matrix.matrix_inverse(text)
@@ -393,7 +712,11 @@ async def determinant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /det [[1,2],[3,4]]")
+        await update.message.reply_text(
+            "📊 **Matrix Determinant**\n\n"
+            "Usage: `/det [[1,2],[3,4]]`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = matrix.matrix_determinant(text)
@@ -402,11 +725,55 @@ async def determinant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+async def transpose(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "🔄 **Matrix Transpose**\n\n"
+            "Usage: `/transpose [[1,2],[3,4]]`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        steps, result = matrix.matrix_transpose(text)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "transpose", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def eigenvalues(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📊 **Matrix Eigenvalues**\n\n"
+            "Usage: `/eigen [[1,2],[3,4]]`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        steps, result = matrix.matrix_eigenvalues(text)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "eigen", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== Unit Conversion ==========
+
 async def unit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /unit <value> <from_unit> to <to_unit>\nExample: /unit 100 km to miles")
+        await update.message.reply_text(
+            "📏 **Unit Converter**\n\n"
+            "Usage: `/unit <value> <from_unit> to <to_unit>`\n"
+            "Examples:\n"
+            "• `/unit 100 km to miles`\n"
+            "• `/unit 25 celsius to fahrenheit`\n"
+            "• `/unit 10 kg to lb`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, result = units.convert_units(text)
@@ -415,11 +782,18 @@ async def unit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ========== Statistics Commands ==========
+
 async def stat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
-        await update.message.reply_text("Usage: /stat <numbers>\nExample: /stat 1,2,3,4,5")
+        await update.message.reply_text(
+            "📊 **Basic Statistics**\n\n"
+            "Usage: `/stat <numbers>`\n"
+            "Example: `/stat 1,2,3,4,5`",
+            parse_mode='Markdown'
+        )
         return
     try:
         steps, results = stats.basic_stats(text)
@@ -432,7 +806,12 @@ async def regress(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 2:
-        await update.message.reply_text("Usage: /regress <x_values> <y_values>\nExample: /regress 1,2,3 2,4,6")
+        await update.message.reply_text(
+            "📈 **Linear Regression**\n\n"
+            "Usage: `/regress <x_values> <y_values>`\n"
+            "Example: `/regress 1,2,3 2,4,6`",
+            parse_mode='Markdown'
+        )
         return
     try:
         x_text = args[0]
@@ -447,7 +826,12 @@ async def ttest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 2:
-        await update.message.reply_text("Usage: /ttest <data> <popmean>\nExample: /ttest 1,2,3,4,5 3")
+        await update.message.reply_text(
+            "📊 **T-Test**\n\n"
+            "Usage: `/ttest <data> <population_mean>`\n"
+            "Example: `/ttest 1,2,3,4,5 3`",
+            parse_mode='Markdown'
+        )
         return
     try:
         data_text = args[0]
@@ -457,6 +841,28 @@ async def ttest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.add_history(update.effective_user.id, "ttest", f"{data_text} {popmean}", str(results))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
+
+async def correlate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await enforce_limit(update): return
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "📊 **Correlation**\n\n"
+            "Usage: `/correlate <x_values> <y_values>`\n"
+            "Example: `/correlate 1,2,3,4,5 2,4,6,8,10`",
+            parse_mode='Markdown'
+        )
+        return
+    try:
+        x_text = args[0]
+        y_text = args[1]
+        steps, results = stats.correlation(x_text, y_text)
+        await reply_with_steps(update, steps)
+        history.add_history(update.effective_user.id, "correlate", f"{x_text} {y_text}", str(results))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== History Command ==========
 
 async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = history.get_history(update.effective_user.id)
@@ -474,18 +880,35 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @premium_required
 async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = ' '.join(context.args)
-    # Format: x*y from -5 to 5 for -5 to 5
+    if not text or " from " not in text or " to " not in text or " for " not in text:
+        await update.message.reply_text(
+            "📊 **3D Plotter**\n\n"
+            "Usage: `/plot3d <f(x,y)> from <xmin> to <xmax> for <ymin> to <ymax>`\n"
+            "Example: `/plot3d x*y from -5 to 5 for -5 to 5`",
+            parse_mode='Markdown'
+        )
+        return
     try:
-        if " from " in text and " to " in text and " for " in text:
-            func_part, rest = text.split(" from ")
-            x_range, y_range = rest.split(" for ")
-            xmin, xmax = map(float, x_range.split(" to "))
-            ymin, ymax = map(float, y_range.split(" to "))
-            buf = graphing.plot3d_function(func_part, xmin, xmax, ymin, ymax)
-            await update.message.reply_photo(photo=buf, caption=f"3D plot of {func_part}")
-            history.add_history(update.effective_user.id, "plot3d", text, "3D plot")
-        else:
-            await update.message.reply_text("Usage: /plot3d <f(x,y)> from <xmin> to <xmax> for <ymin> to <ymax>")
+        parts = text.split(" from ")
+        func_part = parts[0].strip()
+        range_parts = parts[1].split(" for ")
+        
+        x_range = range_parts[0].strip()
+        y_range = range_parts[1].strip()
+        
+        x_parts = x_range.split(" to ")
+        y_parts = y_range.split(" to ")
+        
+        if len(x_parts) != 2 or len(y_parts) != 2:
+            await update.message.reply_text("Please specify valid ranges")
+            return
+            
+        xmin, xmax = float(x_parts[0]), float(x_parts[1])
+        ymin, ymax = float(y_parts[0]), float(y_parts[1])
+        
+        buf = graphing.plot3d_function(func_part, xmin, xmax, ymin, ymax)
+        await update.message.reply_photo(photo=buf, caption=f"📊 3D plot of {func_part}")
+        history.add_history(update.effective_user.id, "plot3d", text, "3D plot")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
@@ -493,7 +916,12 @@ async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def system(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = ' '.join(context.args)
     if " for " not in text:
-        await update.message.reply_text("Usage: /system <eq1, eq2> for <vars>\nExample: /system x+y=5, 2x-y=1 for x,y")
+        await update.message.reply_text(
+            "🔢 **System of Equations**\n\n"
+            "Usage: `/system <eq1, eq2> for <vars>`\n"
+            "Example: `/system x+y=5, 2x-y=1 for x,y`",
+            parse_mode='Markdown'
+        )
         return
     try:
         eqs_str, vars_str = text.split(" for ")
@@ -506,26 +934,40 @@ async def system(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @premium_required
 async def fit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = ' '.join(context.args)
-    await update.message.reply_text("Curve fitting coming soon! (Premium feature)")
+    await update.message.reply_text(
+        "📈 **Curve Fitting**\n\n"
+        "This feature is coming soon! It will allow you to fit data to custom functions.\n"
+        "Example: `/fit a*exp(b*x)+c 1,2,3 2,4,8`"
+    )
     history.add_history(update.effective_user.id, "fit", text, "Placeholder")
 
 @premium_required
 async def exportpdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # In real implementation, generate PDF from user's history
-    await update.message.reply_text("📄 PDF export coming soon! This will generate a PDF of your calculations.")
+    await update.message.reply_text(
+        "📄 **PDF Export**\n\n"
+        "This feature is coming soon! It will generate a PDF of your calculation history."
+    )
     history.add_history(update.effective_user.id, "exportpdf", "", "PDF export requested")
 
 @premium_required
 async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
     calc_id = ' '.join(context.args) if context.args else "latest"
-    await update.message.reply_text(f"🔗 Sharing calculation {calc_id} – feature coming soon!")
+    await update.message.reply_text(
+        "🔗 **Share Calculation**\n\n"
+        "This feature is coming soon! It will allow you to share calculations with others."
+    )
     history.add_history(update.effective_user.id, "share", calc_id, "Share requested")
 
 @premium_required
 async def save_func(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if len(args) < 2:
-        await update.message.reply_text("Usage: /save <name> <expression>\nExample: /save f1 x**2 + 1")
+        await update.message.reply_text(
+            "💾 **Save Function**\n\n"
+            "Usage: `/save <name> <expression>`\n"
+            "Example: `/save f1 x**2 + 1`",
+            parse_mode='Markdown'
+        )
         return
     name = args[0]
     expr = ' '.join(args[1:])
@@ -551,7 +993,13 @@ async def list_funcs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def setkey(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if len(args) < 2:
-        await update.message.reply_text("Usage: /setkey <provider> <your_api_key>\nProviders: openai, gemini, claude")
+        await update.message.reply_text(
+            "🔑 **Set API Key**\n\n"
+            "Usage: `/setkey <provider> <your_api_key>`\n"
+            "Providers: `openai`, `gemini`, `claude`\n"
+            "Example: `/setkey openai sk-1234567890`",
+            parse_mode='Markdown'
+        )
         return
     provider = args[0].lower()
     api_key = ' '.join(args[1:])
@@ -619,7 +1067,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if query.data == "show_buy":
-        await buy(update, context)
+        # Create a new message with buy options
+        keyboard = [
+            [InlineKeyboardButton("💰 Monthly - 50 Stars", callback_data="buy_monthly")],
+            [InlineKeyboardButton("📅 Yearly - 500 Stars", callback_data="buy_yearly")],
+            [InlineKeyboardButton("💎 Lifetime - 2000 Stars", callback_data="buy_lifetime")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "💎 **Premium Plans**\n\nChoose your subscription:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
         return
     
     if query.data.startswith("buy_"):
@@ -753,33 +1212,61 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========== Main ==========
 
-def main():
+def run_bot():
     """Start the bot."""
     # Create application
     app = Application.builder().token(config.BOT_TOKEN).build()
     
-    # Free commands
+    # Free commands - Basic
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CommandHandler("calc", calc))
+    
+    # Free commands - Calculus
     app.add_handler(CommandHandler("derive", derive))
     app.add_handler(CommandHandler("integrate", integrate))
     app.add_handler(CommandHandler("limit", limit))
+    app.add_handler(CommandHandler("series", series))
+    
+    # Free commands - Differential Equations
     app.add_handler(CommandHandler("ode", ode))
+    
+    # Free commands - Transforms
     app.add_handler(CommandHandler("laplace", laplace))
+    app.add_handler(CommandHandler("invlaplace", inverse_laplace))
+    app.add_handler(CommandHandler("fourier", fourier))
+    
+    # Free commands - Vector Calculus
     app.add_handler(CommandHandler("gradient", gradient))
     app.add_handler(CommandHandler("divergence", divergence))
     app.add_handler(CommandHandler("curl", curl))
+    
+    # Free commands - Numerical Methods
     app.add_handler(CommandHandler("fsolve", fsolve))
     app.add_handler(CommandHandler("quad", quad))
+    app.add_handler(CommandHandler("minimize", minimize))
+    
+    # Free commands - Plotting
     app.add_handler(CommandHandler("plot", plot))
+    app.add_handler(CommandHandler("plotmulti", plotmulti))
+    
+    # Free commands - Matrix Operations
     app.add_handler(CommandHandler("matrix", matrix_mult))
     app.add_handler(CommandHandler("inverse", inverse))
     app.add_handler(CommandHandler("det", determinant))
+    app.add_handler(CommandHandler("transpose", transpose))
+    app.add_handler(CommandHandler("eigen", eigenvalues))
+    
+    # Free commands - Unit Conversion
     app.add_handler(CommandHandler("unit", unit))
+    
+    # Free commands - Statistics
     app.add_handler(CommandHandler("stat", stat))
     app.add_handler(CommandHandler("regress", regress))
     app.add_handler(CommandHandler("ttest", ttest))
+    app.add_handler(CommandHandler("correlate", correlate))
+    
+    # Free commands - History
     app.add_handler(CommandHandler("history", history_cmd))
     
     # Premium commands
@@ -813,4 +1300,10 @@ def main():
     app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    # Start web server in background (for Railway)
+    if WEB_SERVER:
+        threading.Thread(target=run_web_server, daemon=True).start()
+        logger.info(f"Web server started on port {os.getenv('PORT', 8080)}")
+    
+    # Start the bot
+    run_bot()
