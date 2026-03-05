@@ -1482,8 +1482,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
 
-# ========== Main ==========
-
+# ========== Command Handler Registration ==========
 def run_bot():
     """Start the bot."""
     # Create application
@@ -1515,7 +1514,7 @@ def run_bot():
     
     # Free commands - Numerical Methods
     app.add_handler(CommandHandler("fsolve", fsolve))
-    app.add_handler(CommandHandler("quad", quad))
+    app.add_handler(CommandHandler("quad", quad))      # ← This requires quad function defined ABOVE
     app.add_handler(CommandHandler("minimize", minimize))
     
     # Free commands - Plotting
