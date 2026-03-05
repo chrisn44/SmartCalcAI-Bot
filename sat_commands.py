@@ -6,8 +6,14 @@ from telegram import Update
 from telegram.ext import ContextTypes
 import history
 import sat_calculator
+import config  # added for owner check
 from bot import reply_with_steps, enforce_limit, premium_required  # Import from main bot
 import os
+
+# ========== OWNER UTILITY ==========
+def is_owner(user_id):
+    """Check if user is the bot owner."""
+    return user_id == config.OWNER_ID
 
 # ========== ADVANCED ALGEBRA COMMANDS ==========
 
@@ -87,8 +93,8 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_lower = text.lower()
         
         if '%' in text_lower or 'percent' in text_lower:
-            # Handle "15% of 200" format
             import re
+            # Handle "15% of 200"
             match = re.search(r'(\d+)%?\s+of\s+(\d+)', text_lower)
             if match:
                 percent = float(match.group(1))
@@ -98,7 +104,7 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 history.add_history(update.effective_user.id, "percent", text, str(result))
                 return
             
-            # Handle "what percent is 30 of 150" format
+            # Handle "what percent is 30 of 150"
             match = re.search(r'what\s+percent\s+is\s+(\d+)\s+of\s+(\d+)', text_lower)
             if match:
                 part = float(match.group(1))
@@ -108,7 +114,7 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 history.add_history(update.effective_user.id, "percent", text, str(result))
                 return
             
-            # Handle "25 is 20% of what" format
+            # Handle "25 is 20% of what"
             match = re.search(r'(\d+)\s+is\s+(\d+)%\s+of\s+what', text_lower)
             if match:
                 part = float(match.group(1))
@@ -543,3 +549,26 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.add_history(update.effective_user.id, "test", topic, str(problem))
     else:
         await update.message.reply_text("❌ Could not generate test.")
+
+# ========== OWNER STATISTICS COMMAND (NEW) ==========
+
+async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner command to get real bot statistics."""
+    user_id = update.effective_user.id
+    if not is_owner(user_id):
+        await update.message.reply_text("❌ This command is only for bot owner.")
+        return
+
+    try:
+        from sat_stats import get_stats
+        stats = get_stats()
+        await update.message.reply_text(
+            f"👑 **Bot Statistics**\n\n"
+            f"📊 **Total users:** `{stats['total_users']}`\n"
+            f"💎 **Premium users:** `{stats['premium_users']}`\n"
+            f"🧮 **Total calculations:** `{stats['total_calculations']}`",
+            parse_mode='Markdown'
+        )
+        history.add_history(user_id, "botstats", "", str(stats))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error fetching stats: {e}")
