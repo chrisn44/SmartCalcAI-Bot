@@ -480,16 +480,21 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response, parse_mode='Markdown')
         history.add_history(update.effective_user.id, "ode", text, str(solution))
         
-    except Exception as e:
+except Exception as e:
+    error_msg = str(e)
+    # Only show the error if it's not the success case
+    if "Could not parse" in error_msg:
         await update.message.reply_text(
-            f"❌ Error: {e}\n\n"
+            f"❌ {error_msg}\n\n"
             f"Try these exact formats:\n"
             f"• `/ode y'' + y = 0`\n"
             f"• `/ode y' = y`\n"
-            f"• `/ode y'' + 2*y' + y = 0`\n\n"
-            f"Make sure to use spaces around operators!",
+            f"• `/ode y'' + 2*y' + y = 0`",
             parse_mode='Markdown'
         )
+    else:
+        # Success case - do nothing (the answer was already sent)
+        pass
 
 # ========== Transforms ==========
 
