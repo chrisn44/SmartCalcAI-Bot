@@ -1692,6 +1692,10 @@ def run_bot():
     
     # Free commands - History
     app.add_handler(CommandHandler("history", history_cmd))
+
+    # Load SAT features
+    from sat_integration import add_sat_handlers
+    add_sat_handlers(app)
     
     # Premium commands
     app.add_handler(CommandHandler("plot3d", plot3d))
