@@ -570,77 +570,62 @@ async def fsolve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🔢 **Numerical Root Finding**\n\n"
             "Usage: `/fsolve <equation> [guess]`\n"
-            "Example: `/fsolve x^2-2 1`",
+            "Examples:\n"
+            "• `/fsolve x^2-2 1` - solves x² - 2 = 0\n"
+            "• `/fsolve x^2-2=0 1` - also works with = sign\n"
+            "• `/fsolve cos(x) - x 0` - solves cos(x) = x",
             parse_mode='Markdown'
         )
         return
+    
     try:
-        parts = text.split()
-        if len(parts) > 1 and parts[-1].replace('.','').replace('-','').isdigit():
-            guess = float(parts[-1])
-            expr = ' '.join(parts[:-1])
+        # Parse: remove equals sign if present
+        expr_text = text
+        
+        # Handle equations with = sign
+        if '=' in expr_text:
+            # Split into left and right sides
+            parts = expr_text.split('=')
+            if len(parts) == 2:
+                left = parts[0].strip()
+                right = parts[1].strip()
+                
+                # Check if right side contains the guess
+                right_parts = right.split()
+                if len(right_parts) > 1 and right_parts[-1].replace('.','').replace('-','').replace('+','').isdigit():
+                    # Last part is guess
+                    guess = float(right_parts[-1])
+                    right = ' '.join(right_parts[:-1])
+                else:
+                    guess = 0.0
+                
+                # Convert to expression = 0: left - right = 0
+                expr = f"({left}) - ({right})"
+            else:
+                await update.message.reply_text("❌ Invalid equation format. Use: equation = 0")
+                return
         else:
-            guess = 0.0
-            expr = text
+            # No equals sign - assume =0
+            parts = text.split()
+            if len(parts) > 1 and parts[-1].replace('.','').replace('-','').replace('+','').isdigit():
+                guess = float(parts[-1])
+                expr = ' '.join(parts[:-1])
+            else:
+                guess = 0.0
+                expr = text
+        
         steps, result = calculator.fsolve(expr, guess=guess)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "fsolve", text, str(result))
+        
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
-
-async def quad(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await enforce_limit(update): return
-    text = ' '.join(context.args)
-    if not text:
         await update.message.reply_text(
-            "📊 **Numerical Integration**\n\n"
-            "Usage: `/quad <function> <a> <b>`\n"
-            "Example: `/quad x^2 0 1`",
+            f"❌ Error: {e}\n\n"
+            f"Try these formats:\n"
+            f"• `/fsolve x^2-2 1`\n"
+            f"• `/fsolve x^2-2=0 1`",
             parse_mode='Markdown'
         )
-        return
-    try:
-        parts = text.split()
-        if len(parts) >= 3:
-            # Check if last two are numbers
-            try:
-                a = float(parts[-2])
-                b = float(parts[-1])
-                expr = ' '.join(parts[:-2])
-                steps, result = calculator.quad_integral(expr, a=a, b=b)
-                await reply_with_steps(update, steps, result)
-                history.add_history(update.effective_user.id, "quad", text, str(result))
-            except:
-                await update.message.reply_text("❌ Please specify numeric limits a and b")
-        else:
-            await update.message.reply_text("Usage: /quad <function> <a> <b>")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
-
-async def minimize(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await enforce_limit(update): return
-    text = ' '.join(context.args)
-    if not text:
-        await update.message.reply_text(
-            "📉 **Minimization**\n\n"
-            "Usage: `/minimize <function> [guess]`\n"
-            "Example: `/minimize x^2+2x+1 0`",
-            parse_mode='Markdown'
-        )
-        return
-    try:
-        parts = text.split()
-        if len(parts) > 1 and parts[-1].replace('.','').replace('-','').isdigit():
-            guess = float(parts[-1])
-            expr = ' '.join(parts[:-1])
-        else:
-            guess = 0.0
-            expr = text
-        steps, result = calculator.minimize(expr, guess=guess)
-        await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "minimize", text, str(result))
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
 
 # ========== Plotting Commands ==========
 
