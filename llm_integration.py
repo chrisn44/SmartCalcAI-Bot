@@ -23,494 +23,269 @@ def decrypt_key(encrypted_key: str) -> str:
     return cipher.decrypt(encrypted_key.encode()).decode()
 
 class PremiumSmartInterpreter:
-    """PREMIUM built-in natural language interpreter - no API keys needed!
-       Only works for premium users!"""
+    """PREMIUM built-in natural language interpreter - no API keys needed!"""
     
     def __init__(self):
         logger.info("Initializing PREMIUM smart interpreter")
-        # Load all the smart patterns
-        self.setup_patterns()
-    
-def setup_patterns(self):
-    """Setup all the pattern matching rules"""
-    
-    # ===== DERIVATIVE PATTERNS =====
-    self.derive_patterns = [
-        # Simple forms
-        (r'(?:find|what is|calculate|get)\s+(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
-        (r'(?:differentiate|derive)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
-        (r'^d/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dx'),
-        (r'^d([a-z]?)/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dxdy'),
-        (r'f\'(?:\(([a-z])\))?\s*=\s*(.+?)$', 'derive_fprime'),
-        (r'`?\s*\\frac\{d\}\{d([a-z])\}\s*\(\s*(.+?)\s*\)`?', 'derive_dx'),
-        
-        # Question forms
-        (r'what(?:\s+is)?\s+the\s+derivative\s+of\s+(.+?)\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z])', 'derive'),
-        (r'how to (?:differentiate|find derivative of)\s+(.+?)$', 'derive'),
-        (r'give me the derivative of (.+?)$', 'derive'),
-        (r'compute the derivative of (.+?)$', 'derive'),
-        
-        # Function forms
-        (r'differentiate (.+?) with respect to ([a-z])', 'derive'),
-        (r'derivative of (.+?) with respect to ([a-z])', 'derive'),
-        (r'd/d([a-z])\s*\(\s*(.+?)\s*\)', 'derive_dx'),
-    ]
-    
-    # ===== INTEGRAL PATTERNS =====
-    self.integral_patterns = [
-        # Definite integrals
-        (r'(?:integrate|integral of)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'definite'),
-        (r'∫[_\^]?\{?([0-9.-]+)\}?[\^]?\{?([0-9.-]+)\}?\s*(.+?)\s*d([a-z])', 'definite_unicode'),
-        (r'what(?:\s+is)?\s+the\s+integral\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'definite'),
-        (r'calculate the integral of (.+?) from ([0-9.-]+) to ([0-9.-]+)', 'definite'),
-        (r'find the definite integral of (.+?) between ([0-9.-]+) and ([0-9.-]+)', 'definite'),
-        
-        # Indefinite integrals
-        (r'(?:integrate|integral of|find antiderivative of)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'indefinite'),
-        (r'indefinite\s+integral\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'indefinite'),
-        (r'∫\s*(.+?)\s*d([a-z])', 'indefinite_unicode'),
-        (r'find the integral of (.+?)$', 'indefinite'),
-        (r'compute the integral of (.+?)$', 'indefinite'),
-    ]
-    
-    # ===== LIMIT PATTERNS =====
-    self.limit_patterns = [
-        (r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to|→)\s*([0-9.infinity-]+)', 'standard'),
-        (r'lim\s*_{?([a-z])\s*(?:->|→)?\s*([0-9.infinity-]+)}?\s+(.+?)$', 'lim_format'),
-        (r'what(?:\s+is)?\s+the\s+limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity-]+)', 'standard'),
-        (r'\\lim_{([a-z])\s*\\to\s*([0-9.infinity-]+)}\s*(.+?)$', 'latex'),
-        (r'find the limit of (.+?) as ([a-z]) approaches ([0-9.infinity-]+)', 'standard'),
-        (r'compute the limit of (.+?) when ([a-z]) -> ([0-9.infinity-]+)', 'standard'),
-    ]
-    
-    # ===== SERIES PATTERNS =====
-    self.series_patterns = [
-        (r'(?:series|taylor series|expansion|taylor expansion)\s+of\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+(?:order|terms|up to)\s+([0-9]+))?', 'standard'),
-        (r'expand\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+to\s+order\s+([0-9]+))?', 'standard'),
-        (r'maclaurin\s+series\s+of\s+(.+?)(?:\s+to\s+order\s+([0-9]+))?', 'maclaurin'),
-        (r'find the series expansion of (.+?) around ([0-9.-]+)', 'standard'),
-        (r'taylor series of (.+?) at ([0-9.-]+)', 'standard'),
-    ]
-    
-    # ===== EQUATION SOLVING PATTERNS =====
-    self.solve_patterns = [
-        (r'solve\s+(?:the\s+)?(?:equation|for)\s+(.+?)(?:\s+for\s+([a-z]))?$', 'standard'),
-        (r'find\s+(?:the\s+)?roots?\s+of\s+(.+?)$', 'roots'),
-        (r'what\s+is\s+the\s+solution\s+to\s+(.+?)$', 'standard'),
-        (r'when\s+does\s+(.+?)\s*=\s*0', 'zero'),
-        (r'solve for ([a-z]) in (.+?)$', 'solve_for'),
-        (r'find x such that (.+?)$', 'find_x'),
-    ]
-    
-    # ===== PLOTTING PATTERNS =====
-    self.plot_patterns = [
-        (r'(?:plot|graph|draw|sketch)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+for\s+([a-z]))?', 'standard'),
-        (r'(?:plot|graph|draw)\s+(.+?)\s+(?:on|over)\s+\[([0-9.-]+),\s*([0-9.-]+)\]', 'bracket'),
-        (r'show\s+me\s+the\s+graph\s+of\s+(.+?)\s+between\s+([0-9.-]+)\s+and\s+([0-9.-]+)', 'between'),
-        (r'visualize\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'visualize'),
-        (r'plot function (.+?) on interval \[([0-9.-]+), ([0-9.-]+)\]', 'function'),
-    ]
-    
-    # ===== BASIC ARITHMETIC PATTERNS =====
-    self.calc_patterns = [
-        (r'^(.+?)\s*=\s*$', 'equation'),
-        (r'^(.+?)\??$', 'question'),
-        (r'what is (.+?)$', 'what_is'),
-        (r'calculate (.+?)$', 'calculate'),
-        (r'compute (.+?)$', 'compute'),
-        (r'evaluate (.+?)$', 'evaluate'),
-        (r'simplify (.+?)$', 'simplify'),
-    ]
-    
-    # ===== 3D PLOTTING PATTERNS (Premium) =====
-    self.plot3d_patterns = [
-        (r'(?:plot3d|3d\s+plot|surface\s+plot)\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+for\s+([a-z])\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'standard'),
-        (r'plot\s+(.+?)\s+in\s+3d\s+with\s+x\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+and\s+y\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', '3d'),
-        (r'3d plot of (.+?) for x in \[([0-9.-]+), ([0-9.-]+)\] and y in \[([0-9.-]+), ([0-9.-]+)\]', '3d_bracket'),
-    ]
-    
-    # ===== SYSTEM OF EQUATIONS (Premium) =====
-    self.system_patterns = [
-        (r'solve\s+(?:system|simultaneous equations?)\s+(.+?)\s+for\s+([a-z,]+)', 'standard'),
-        (r'find\s+(?:the\s+)?values?\s+of\s+([a-z,]+)\s+that\s+satisfy\s+(.+?)$', 'find_values'),
-        (r'solve\s+(.+?)\s+and\s+(.+?)\s+simultaneously', 'simultaneous'),
-        (r'system:\s+(.+?),\s*(.+?)$', 'system_comma'),
-    ]
-    
-    # ===== MATRIX PATTERNS =====
-    self.matrix_patterns = [
-        (r'(?:matrix|matrices?)\s+multiply\s+(.+?)\s+(?:and|×|x|\*)\s+(.+?)$', 'multiply'),
-        (r'multiply\s+(.+?)\s+(?:and|by|×|x|\*)\s+(.+?)$', 'multiply'),
-        (r'(\[\[.+\]\])\s*\*+\s*(\[\[.+\]\])', 'multiply_symbol'),
-        (r'inverse\s+of\s+(.+?)$', 'inverse'),
-        (r'determinant\s+of\s+(.+?)$', 'determinant'),
-        (r'transpose\s+of\s+(.+?)$', 'transpose'),
-        (r'eigenvalues?\s+of\s+(.+?)$', 'eigenvalues'),
-    ]
-    
-    # ===== UNIT CONVERSION PATTERNS =====
-    self.unit_patterns = [
-        (r'(?:convert|change)\s+([0-9.]+)\s*([a-z/°]+)\s+(?:to|into|in)\s+([a-z/°]+)', 'standard'),
-        (r'([0-9.]+)\s*([a-z/°]+)\s+(?:to|in)\s+([a-z/°]+)', 'simple'),
-        (r'how\s+many\s+([a-z/°]+)\s+(?:are|is)\s+([0-9.]+)\s*([a-z/°]+)', 'how_many'),
-        (r'what\s+is\s+([0-9.]+)\s*([a-z/°]+)\s+in\s+([a-z/°]+)', 'what_is'),
-        (r'([0-9.]+)\s*(?:°?[FCK]|celsius|fahrenheit|kelvin)\s+to\s+([°?[FCK]|celsius|fahrenheit|kelvin)', 'temperature'),
-    ]
-    
-    # ===== STATISTICS PATTERNS =====
-    self.stat_patterns = [
-        (r'(?:statistics?|summary|analyze)\s+(?:for|of)?\s*([0-9,\s\.]+)', 'general'),
-        (r'(?:mean|average)\s+of\s+([0-9,\s\.]+)', 'mean'),
-        (r'median\s+of\s+([0-9,\s\.]+)', 'median'),
-        (r'standard\s+deviation\s+of\s+([0-9,\s\.]+)', 'std'),
-        (r'variance\s+of\s+([0-9,\s\.]+)', 'variance'),
-        (r'mode\s+of\s+([0-9,\s\.]+)', 'mode'),
-        (r'range\s+of\s+([0-9,\s\.]+)', 'range'),
-        (r'quartiles?\s+of\s+([0-9,\s\.]+)', 'quartiles'),
-    ]
-    
-    # ===== DIFFERENTIAL EQUATIONS PATTERNS =====
-    self.ode_patterns = [
-        (r'solve\s+(?:the\s+)?(?:ode|differential equation|diff eq)\s+(.+?)$', 'standard'),
-        (r'(?:y\'\'?[\s+].+?=0)$', 'ode_format'),
-        (r'dsolve\s+(.+?)$', 'dsolve'),
-        (r'(?:y\'|y\'\'|dy/dx|d2y/dx2).*?=.*?$', 'derivative_format'),
-    ]
     
     def interpret(self, user_text: str) -> dict:
         """Interpret natural language math queries using pattern matching."""
         user_text = user_text.lower().strip()
         
-        # ===== CHECK FOR 3D PLOTTING (PREMIUM) =====
-        for pattern in self.plot3d_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                groups = match.groups()
-                if len(groups) >= 5:
-                    return {
-                        "command": "plot3d",
-                        "expression": groups[0].strip(),
-                        "xmin": groups[1],
-                        "xmax": groups[2],
-                        "ymin": groups[4] if len(groups) > 4 else groups[3],
-                        "ymax": groups[5] if len(groups) > 5 else groups[4],
-                        "explanation": "3D surface plot (PREMIUM FEATURE)",
-                        "premium": True,
-                        "confidence": "high"
-                    }
+        # ===== DERIVATIVE PATTERNS =====
+        # what's the derivative of x squared?
+        derive_match = re.search(r'(?:what\'?s|what is|find|calculate|get)\s+(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', user_text)
+        if derive_match:
+            expr = derive_match.group(1).strip()
+            var = derive_match.group(2) if derive_match.group(2) else 'x'
+            # Convert "x squared" to "x**2"
+            expr = expr.replace('squared', '**2').replace('cubed', '**3')
+            return {
+                "command": "derive",
+                "expression": expr,
+                "variable": var,
+                "explanation": f"Finding derivative with respect to {var}",
+                "premium": False,
+                "confidence": "high"
+            }
         
-        # ===== CHECK FOR SYSTEM OF EQUATIONS (PREMIUM) =====
-        for pattern in self.system_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                return {
-                    "command": "system",
-                    "expression": user_text,
-                    "explanation": "System of equations solver (PREMIUM FEATURE)",
-                    "premium": True,
-                    "confidence": "high"
-                }
+        # d/dx pattern
+        ddx_match = re.search(r'd/d([a-z])\s*\(\s*(.+?)\s*\)', user_text)
+        if ddx_match:
+            var = ddx_match.group(1)
+            expr = ddx_match.group(2).strip()
+            return {
+                "command": "derive",
+                "expression": expr,
+                "variable": var,
+                "explanation": f"Finding derivative with respect to {var}",
+                "premium": False,
+                "confidence": "high"
+            }
         
-        # ===== DERIVATIVE CHECKS =====
-        for pattern, cmd_type in self.derive_patterns:
-            if isinstance(pattern, tuple):
-                pattern = pattern[0]
-            match = re.search(pattern, user_text)
-            if match:
-                if cmd_type == 'derive_dx':
-                    var = match.group(1)
-                    expr = match.group(2)
-                elif cmd_type == 'derive_dxdy':
-                    var = match.group(2)
-                    expr = match.group(3)
-                elif cmd_type == 'derive_fprime':
-                    expr = match.group(2)
-                    var = match.group(1) if match.group(1) else 'x'
-                else:
-                    expr = match.group(1)
-                    var = match.group(2) if len(match.groups()) > 1 and match.group(2) else 'x'
-                
+        # differentiate pattern
+        diff_match = re.search(r'differentiate\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', user_text)
+        if diff_match:
+            expr = diff_match.group(1).strip()
+            var = diff_match.group(2) if diff_match.group(2) else 'x'
+            return {
+                "command": "derive",
+                "expression": expr,
+                "variable": var,
+                "explanation": f"Finding derivative with respect to {var}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== INTEGRAL PATTERNS =====
+        # definite integral
+        def_int_match = re.search(r'(?:integrate|integral of)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?', user_text)
+        if def_int_match:
+            expr = def_int_match.group(1).strip()
+            a = def_int_match.group(2)
+            b = def_int_match.group(3)
+            var = def_int_match.group(4) if def_int_match.group(4) else 'x'
+            return {
+                "command": "integrate",
+                "expression": expr,
+                "limits": [a, b],
+                "variable": var,
+                "explanation": f"Definite integral from {a} to {b}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # indefinite integral
+        ind_int_match = re.search(r'(?:integrate|integral of|find antiderivative of)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', user_text)
+        if ind_int_match:
+            expr = ind_int_match.group(1).strip()
+            var = ind_int_match.group(2) if ind_int_match.group(2) else 'x'
+            return {
+                "command": "integrate",
+                "expression": expr,
+                "variable": var,
+                "explanation": f"Indefinite integral with respect to {var}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== LIMIT PATTERNS =====
+        limit_match = re.search(r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity-]+)', user_text)
+        if limit_match:
+            expr = limit_match.group(1).strip()
+            var = limit_match.group(2)
+            approach = limit_match.group(3)
+            return {
+                "command": "limit",
+                "expression": expr,
+                "variable": var,
+                "approach": approach,
+                "explanation": f"Limit as {var} → {approach}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== SERIES PATTERNS =====
+        series_match = re.search(r'(?:series|taylor series|expand)\s+of\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+(?:order|terms|to order)\s+([0-9]+))?', user_text)
+        if series_match:
+            expr = series_match.group(1).strip()
+            about = series_match.group(2)
+            order = series_match.group(3) if series_match.group(3) else '6'
+            return {
+                "command": "series",
+                "expression": expr,
+                "about": about,
+                "order": order,
+                "explanation": f"Series expansion about {about}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== PLOTTING PATTERNS =====
+        plot_match = re.search(r'(?:plot|graph|draw)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', user_text)
+        if plot_match:
+            expr = plot_match.group(1).strip()
+            xmin = plot_match.group(2)
+            xmax = plot_match.group(3)
+            return {
+                "command": "plot",
+                "expression": expr,
+                "xmin": xmin,
+                "xmax": xmax,
+                "explanation": f"Plotting from {xmin} to {xmax}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== 3D PLOTTING (PREMIUM) =====
+        plot3d_match = re.search(r'(?:plot3d|3d plot|surface plot)\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+for\s+([a-z])\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', user_text)
+        if plot3d_match:
+            expr = plot3d_match.group(1).strip()
+            xmin = plot3d_match.group(2)
+            xmax = plot3d_match.group(3)
+            ymin = plot3d_match.group(5)
+            ymax = plot3d_match.group(6)
+            return {
+                "command": "plot3d",
+                "expression": expr,
+                "xmin": xmin,
+                "xmax": xmax,
+                "ymin": ymin,
+                "ymax": ymax,
+                "explanation": "3D surface plot (PREMIUM FEATURE)",
+                "premium": True,
+                "confidence": "high"
+            }
+        
+        # ===== UNIT CONVERSION PATTERNS =====
+        unit_match = re.search(r'(?:convert|change)\s+([0-9.]+)\s*([a-z/°]+)\s+(?:to|into|in)\s+([a-z/°]+)', user_text)
+        if unit_match:
+            value = unit_match.group(1)
+            from_unit = unit_match.group(2)
+            to_unit = unit_match.group(3)
+            return {
+                "command": "unit",
+                "expression": f"{value} {from_unit} to {to_unit}",
+                "explanation": f"Converting {value} {from_unit} to {to_unit}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # Simple unit pattern
+        simple_unit = re.search(r'([0-9.]+)\s*([a-z/°]+)\s+to\s+([a-z/°]+)', user_text)
+        if simple_unit:
+            value = simple_unit.group(1)
+            from_unit = simple_unit.group(2)
+            to_unit = simple_unit.group(3)
+            return {
+                "command": "unit",
+                "expression": f"{value} {from_unit} to {to_unit}",
+                "explanation": f"Converting {value} {from_unit} to {to_unit}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== STATISTICS PATTERNS =====
+        stat_match = re.search(r'(?:mean|average)\s+of\s+([0-9,\s\.]+)', user_text)
+        if stat_match:
+            data = stat_match.group(1)
+            return {
+                "command": "stat",
+                "expression": data,
+                "explanation": "Calculating mean",
+                "premium": False,
+                "confidence": "medium"
+            }
+        
+        median_match = re.search(r'median\s+of\s+([0-9,\s\.]+)', user_text)
+        if median_match:
+            data = median_match.group(1)
+            return {
+                "command": "stat",
+                "expression": data,
+                "explanation": "Calculating median",
+                "premium": False,
+                "confidence": "medium"
+            }
+        
+        # ===== BASIC ARITHMETIC PATTERNS =====
+        # what is 2+2
+        what_is_match = re.search(r'what(?:\'s| is)\s+([0-9\s\+\-\*\/\^\(\)\.]+)', user_text)
+        if what_is_match:
+            expr = what_is_match.group(1).strip()
+            if any(c in expr for c in ['+', '-', '*', '/', '^']):
                 return {
-                    "command": "derive",
-                    "expression": expr.strip(),
-                    "variable": var,
-                    "explanation": f"Finding derivative with respect to {var}",
+                    "command": "calc",
+                    "expression": expr,
+                    "explanation": f"Calculating: {expr}",
                     "premium": False,
                     "confidence": "high"
                 }
         
-        # ===== INTEGRAL CHECKS =====
-        for pattern in self.integral_patterns[:3]:  # Definite integrals
-            if isinstance(pattern, tuple):
-                pattern = pattern[0]
-            match = re.search(pattern, user_text)
-            if match:
-                if 'definite_unicode' in str(pattern):
-                    expr = match.group(3)
-                    var = match.group(4)
-                    a = match.group(1)
-                    b = match.group(2)
-                else:
-                    expr = match.group(1)
-                    a = match.group(2)
-                    b = match.group(3)
-                    var = match.group(4) if len(match.groups()) >= 4 and match.group(4) else 'x'
-                
+        # calculate 2+2
+        calc_match = re.search(r'(?:calculate|compute|evaluate|solve)\s+([0-9\s\+\-\*\/\^\(\)\.]+)', user_text)
+        if calc_match:
+            expr = calc_match.group(1).strip()
+            if any(c in expr for c in ['+', '-', '*', '/', '^']):
                 return {
-                    "command": "integrate",
-                    "expression": expr.strip(),
-                    "limits": [a, b],
-                    "variable": var,
-                    "explanation": f"Definite integral from {a} to {b}",
+                    "command": "calc",
+                    "expression": expr,
+                    "explanation": f"Calculating: {expr}",
                     "premium": False,
                     "confidence": "high"
                 }
         
-        # Indefinite integrals
-        for pattern in self.integral_patterns[3:]:
-            if isinstance(pattern, tuple):
-                pattern = pattern[0]
-            match = re.search(pattern, user_text)
-            if match:
-                if '∫' in pattern:
-                    expr = match.group(1)
-                    var = match.group(2)
-                else:
-                    expr = match.group(1)
-                    var = match.group(2) if len(match.groups()) > 1 and match.group(2) else 'x'
-                
+        # Simple arithmetic like 2+2
+        simple_arith = re.search(r'^([0-9]+)\s*([\+\-\*\/\^])\s*([0-9]+)$', user_text)
+        if simple_arith:
+            a, op, b = simple_arith.groups()
+            expr = f"{a} {op} {b}"
+            return {
+                "command": "calc",
+                "expression": expr,
+                "explanation": f"Calculating: {expr}",
+                "premium": False,
+                "confidence": "high"
+            }
+        
+        # ===== FALLBACK - Try to extract any math expression =====
+        # Look for patterns like numbers and operators
+        math_pattern = r'([0-9\s\+\-\*\/\^\(\)\.]+)'
+        match = re.search(math_pattern, user_text)
+        if match:
+            expr = match.group(1).strip()
+            # Clean up the expression
+            expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)\.]', '', expr)
+            if expr and any(c in expr for c in ['+', '-', '*', '/', '^']):
                 return {
-                    "command": "integrate",
-                    "expression": expr.strip(),
-                    "variable": var,
-                    "explanation": f"Indefinite integral with respect to {var}",
+                    "command": "calc",
+                    "expression": expr,
+                    "explanation": f"Calculating: {expr}",
                     "premium": False,
-                    "confidence": "high"
+                    "confidence": "low"
                 }
         
-        # ===== LIMIT CHECKS =====
-        for pattern in self.limit_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                groups = match.groups()
-                if len(groups) == 3:
-                    if 'lim' in pattern:
-                        var, approach, expr = groups
-                    else:
-                        expr, var, approach = groups
-                else:
-                    continue
-                
-                return {
-                    "command": "limit",
-                    "expression": expr.strip(),
-                    "variable": var,
-                    "approach": approach,
-                    "explanation": f"Limit as {var} → {approach}",
-                    "premium": False,
-                    "confidence": "high"
-                }
-        
-        # ===== SERIES CHECKS =====
-        for pattern in self.series_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                groups = match.groups()
-                expr = groups[0]
-                about = groups[1]
-                order = groups[2] if len(groups) > 2 and groups[2] else '6'
-                
-                return {
-                    "command": "series",
-                    "expression": expr.strip(),
-                    "about": about,
-                    "order": order,
-                    "explanation": f"Series expansion about {about}",
-                    "premium": False,
-                    "confidence": "high"
-                }
-        
-        # ===== EQUATION SOLVING =====
-        for pattern in self.solve_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                expr = match.group(1)
-                var = match.group(2) if len(match.groups()) > 1 and match.group(2) else 'x'
-                
-                return {
-                    "command": "solve",
-                    "expression": expr.strip(),
-                    "variable": var,
-                    "explanation": f"Solving equation for {var}",
-                    "premium": False,
-                    "confidence": "high"
-                }
-        
-        # ===== PLOTTING CHECKS =====
-        for pattern in self.plot_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                groups = match.groups()
-                expr = groups[0]
-                xmin = groups[1]
-                xmax = groups[2]
-                var = groups[3] if len(groups) > 3 and groups[3] else 'x'
-                
-                return {
-                    "command": "plot",
-                    "expression": expr.strip(),
-                    "xmin": xmin,
-                    "xmax": xmax,
-                    "variable": var,
-                    "explanation": f"Plotting from {xmin} to {xmax}",
-                    "premium": False,
-                    "confidence": "high"
-                }
-        
-        # ===== ODE CHECKS =====
-        for pattern in self.ode_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                ode = match.group(1)
-                return {
-                    "command": "ode",
-                    "expression": ode.strip(),
-                    "explanation": "Solving differential equation",
-                    "premium": False,
-                    "confidence": "high"
-                }
-        
-        # ===== MATRIX CHECKS =====
-        for pattern in self.matrix_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                if 'inverse' in pattern:
-                    return {
-                        "command": "inverse",
-                        "expression": match.group(1).strip(),
-                        "explanation": "Matrix inverse",
-                        "premium": False,
-                        "confidence": "high"
-                    }
-                elif 'determinant' in pattern:
-                    return {
-                        "command": "det",
-                        "expression": match.group(1).strip(),
-                        "explanation": "Matrix determinant",
-                        "premium": False,
-                        "confidence": "high"
-                    }
-                else:
-                    A, B = match.group(1), match.group(2)
-                    return {
-                        "command": "matrix",
-                        "expression": f"{A} * {B}",
-                        "explanation": "Matrix multiplication",
-                        "premium": False,
-                        "confidence": "high"
-                    }
-        
-        # ===== UNIT CONVERSION CHECKS =====
-        for pattern in self.unit_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                if len(match.groups()) == 3:
-                    val, from_u, to_u = match.groups()
-                    return {
-                        "command": "unit",
-                        "expression": f"{val} {from_u} to {to_u}",
-                        "explanation": f"Converting {val} {from_u} to {to_u}",
-                        "premium": False,
-                        "confidence": "high"
-                    }
-                else:
-                    how_many, from_u, val, to_u = match.groups()
-                    return {
-                        "command": "unit",
-                        "expression": f"{val} {to_u} to {from_u}",
-                        "explanation": f"Converting {val} {to_u} to {from_u}",
-                        "premium": False,
-                        "confidence": "high"
-                    }
-        
-        # ===== STATISTICS CHECKS =====
-        for pattern in self.stat_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                data = match.group(1)
-                stat_type = 'statistics'
-                if 'mean' in pattern:
-                    stat_type = 'mean'
-                elif 'median' in pattern:
-                    stat_type = 'median'
-                elif 'standard deviation' in pattern:
-                    stat_type = 'standard deviation'
-                elif 'variance' in pattern:
-                    stat_type = 'variance'
-                
-                return {
-                    "command": "stat",
-                    "expression": data,
-                    "explanation": f"Calculating {stat_type}",
-                    "premium": False,
-                    "confidence": "medium"
-                }
-        
-        # ===== BASIC CALCULATION FALLBACK =====
-        # Try to extract simple arithmetic with better pattern matching
-        arithmetic_patterns = [
-            (r'what is (?:the value of )?\s*([0-9\s\+\-\*\/\^\(\)\.]+)', 'what_is'),
-            (r'calculate\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'calculate'),
-            (r'compute\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'compute'),
-            (r'evaluate\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'evaluate'),
-            (r'solve\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'solve'),
-            (r'^([0-9]+)\s*\+\s*([0-9]+)$', 'addition'),
-            (r'^([0-9]+)\s*\-\s*([0-9]+)$', 'subtraction'),
-            (r'^([0-9]+)\s*\*\s*([0-9]+)$', 'multiplication'),
-            (r'^([0-9]+)\s*\/\s*([0-9]+)$', 'division'),
-            (r'^([0-9]+)\s*\^\s*([0-9]+)$', 'power'),
-            (r'([0-9\s\+\-\*\/\^\(\)\.]+)', 'generic'),
-        ]
-        
-        for pattern, calc_type in arithmetic_patterns:
-            match = re.search(pattern, user_text)
-            if match:
-                if calc_type in ['addition', 'subtraction', 'multiplication', 'division', 'power']:
-                    # Handle simple binary operations
-                    a, b = match.group(1), match.group(2)
-                    op_map = {
-                        'addition': '+',
-                        'subtraction': '-',
-                        'multiplication': '*',
-                        'division': '/',
-                        'power': '^'
-                    }
-                    expr = f"{a} {op_map[calc_type]} {b}"
-                    confidence = "high"
-                else:
-                    # Handle general expressions
-                    expr = match.group(1).strip()
-                    # Clean up the expression
-                    expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)\.]', '', expr)
-                    confidence = "medium" if calc_type != 'generic' else "low"
-                
-                # Only proceed if it looks like a math expression
-                if expr and any(c in expr for c in ['+', '-', '*', '/', '^']):
-                    # Check if it's a simple calculation (no variables)
-                    if 'x' not in expr:
-                        explanation = f"Calculating: {expr}"
-                    else:
-                        explanation = f"Expression with variable: {expr}"
-                    
-                    return {
-                        "command": "calc",
-                        "expression": expr,
-                        "explanation": explanation,
-                        "premium": False,
-                        "confidence": confidence
-                    }
-        
-        # No matches found
+        # No matches found - PREMIUM FEATURE
         return {
             "command": "none",
             "expression": None,
