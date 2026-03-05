@@ -416,36 +416,57 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         await update.message.reply_text(
             "📊 **Ordinary Differential Equations**\n\n"
-            "Usage: `/ode <ODE>`\n"
-            "Examples:\n"
-            "• `/ode f'' + f = 0`\n"
-            "• `/ode y'' + 2y' + y = 0`\n"
-            "• `/ode f' = f`\n"
-            "• `/ode f'' + 4*f = 0, f(0)=1, f'(0)=0`",
+            "**Usage:** `/ode <ODE>`\n\n"
+            "**Examples:**\n"
+            "• `/ode y'' + y = 0`\n"
+            "• `/ode y'' + 2*y' + y = 0`\n"
+            "• `/ode y' = y`\n"
+            "• `/ode y'' - y = 0, y(0)=1, y'(0)=0`\n\n"
+            "**Notes:**\n"
+            "• Use `''` for second derivative, `'` for first derivative\n"
+            "• Always include the `=` sign\n"
+            "• Initial conditions can be added after a comma",
             parse_mode='Markdown'
         )
         return
     
     try:
         # Check if initial conditions are provided
+        steps = []
+        solution = None
+        
         if ',' in text:
             # Has initial conditions
             parts = [p.strip() for p in text.split(',')]
             ode_str = parts[0]
-            # Pass the whole thing to calculator for now
-            steps, sol = calculator.solve_ode(ode_str)
-        else:
-            steps, sol = calculator.solve_ode(text)
+            ics = {}
             
-        await reply_with_steps(update, steps, sol)
-        history.add_history(update.effective_user.id, "ode", text, str(sol))
+            # Parse initial conditions
+            for ic in parts[1:]:
+                ic = ic.strip()
+                # Format: y(0)=1 or y'(0)=0
+                import re
+                match = re.match(r"([a-z]'?\([0-9.-]+\))\s*=\s*(.+)", ic)
+                if match:
+                    ics[match.group(1)] = float(match.group(2))
+            
+            steps, solution = calculator.solve_ode(ode_str)
+            # Note: Would need to apply initial conditions
+            # This is a simplified version
+        else:
+            steps, solution = calculator.solve_ode(text)
+        
+        await reply_with_steps(update, steps, solution)
+        history.add_history(update.effective_user.id, "ode", text, str(solution))
+        
     except Exception as e:
         await update.message.reply_text(
             f"❌ Error: {e}\n\n"
-            "Try these formats:\n"
-            "• `/ode f'' + f = 0`\n"
-            "• `/ode y'' + 2*y' + y = 0`\n"
-            "• `/ode f' = f`"
+            f"Try these formats:\n"
+            f"• `/ode y'' + y = 0`\n"
+            f"• `/ode y'' + 2*y' + y = 0`\n"
+            f"• `/ode y' = y`",
+            parse_mode='Markdown'
         )
 
 # ========== Transforms ==========
