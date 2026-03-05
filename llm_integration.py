@@ -33,13 +33,16 @@ class LLMHandler:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
-    def ask(self, prompt: str, max_tokens=1000) -> str:
+    def ask(self, prompt: str, max_tokens=500) -> str:
         """Send prompt to LLM and return response."""
         try:
             if self.provider == 'openai':
                 response = openai.ChatCompletion.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
+                    model="gpt-3.5-turbo",  # Use gpt-3.5-turbo for lower cost
+                    messages=[
+                        {"role": "system", "content": "You are a math assistant. Respond only with valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
                     temperature=0.2,
                     max_tokens=max_tokens
                 )
@@ -59,50 +62,69 @@ class LLMHandler:
                 return response.content[0].text
                 
         except Exception as e:
-            return f"LLM error: {e}"
+            return f"Error: {str(e)}"
 
 def interpret_math_query(user_text: str, llm_handler: LLMHandler) -> dict:
     """Use LLM to convert natural language to structured response."""
     
-    prompt = f"""You are an advanced mathematical assistant. Convert the user's query into a structured JSON response.
+    prompt = f"""You are a math assistant. Convert this question into a command.
 
-User query: "{user_text}"
+Question: "{user_text}"
 
-Respond with a JSON object containing:
-- "expression": a SymPy‑compatible mathematical expression (if applicable)
-- "explanation": a brief step‑by‑step explanation of how to solve it
-- "command": the most appropriate bot command from this list: 
-  ["calc", "derive", "integrate", "limit", "series", "ode", "laplace", 
-   "fourier", "gradient", "divergence", "curl", "fsolve", "quad", "minimize",
-   "plot", "plot3d", "system", "fit", "matrix", "inverse", "det", "unit", 
-   "stat", "regress", "ttest", "correlation", "none"]
+Respond with ONLY a JSON object in this exact format:
+{{
+    "expression": "the math expression",
+    "explanation": "brief explanation",
+    "command": "command_name"
+}}
 
-If the query cannot be interpreted as math, set "expression" to null and provide a helpful explanation.
+Available commands: calc, derive, integrate, limit, series, ode, laplace, fourier, gradient, divergence, curl, fsolve, quad, minimize, plot, matrix, inverse, det, unit, stat, regress, ttest, correlate
 
 Examples:
-- "derivative of x^3 sin(x)" → {{"expression": "x**3 * sin(x)", "explanation": "Apply product rule: (x^3)' = 3x^2, (sin(x))' = cos(x) → result = 3x^2 sin(x) + x^3 cos(x)", "command": "derive"}}
-- "integrate x^2 from 0 to 1" → {{"expression": "x**2", "explanation": "Antiderivative is x^3/3, evaluate from 0 to 1: 1/3 - 0 = 1/3", "command": "integrate"}}
-- "solve system x+y=5, 2x-y=1" → {{"expression": "x+y=5, 2x-y=1", "explanation": "Solving system: from first equation y=5-x, substitute: 2x-(5-x)=1 → 3x-5=1 → 3x=6 → x=2, y=3", "command": "system"}}
+- "derivative of x squared" → {{"expression": "x**2", "explanation": "Derivative of x² is 2x", "command": "derive"}}
+- "integrate x^2 from 0 to 1" → {{"expression": "x**2", "explanation": "Integral from 0 to 1 is 1/3", "command": "integrate"}}
+- "solve x + 5 = 10" → {{"expression": "x + 5 = 10", "explanation": "x = 5", "command": "calc"}}
 
-Return only the JSON, no other text."""
-
+Return ONLY the JSON, no other text."""
+    
     try:
         response = llm_handler.ask(prompt)
+        print(f"Raw LLM response: {response}")  # For debugging
         
-        # Clean markdown code blocks if present
-        if response.startswith("```json"):
+        # Clean the response - remove markdown code blocks if present
+        if response.startswith('```json'):
             response = response[7:]
-        if response.startswith("```"):
+        if response.startswith('```'):
             response = response[3:]
-        if response.endswith("```"):
+        if response.endswith('```'):
             response = response[:-3]
+        
+        # Try to parse JSON
+        response = response.strip()
+        data = json.loads(response)
+        
+        # Validate required fields
+        if not all(k in data for k in ['expression', 'explanation', 'command']):
+            return {
+                "expression": None,
+                "explanation": "Invalid response format from AI",
+                "command": "none"
+            }
             
-        data = json.loads(response.strip())
         return data
         
-    except Exception as e:
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        # Fallback: try to extract information from the response
         return {
             "expression": None,
-            "explanation": f"Error parsing LLM response: {e}",
+            "explanation": f"I couldn't understand that. Try using a command like /derive or /integrate",
+            "command": "none"
+        }
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return {
+            "expression": None,
+            "explanation": f"Error processing your request",
             "command": "none"
         }
