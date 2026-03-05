@@ -416,17 +416,50 @@ async def ode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         await update.message.reply_text(
             "📊 **Ordinary Differential Equations**\n\n"
-            "**Usage:** `/ode <ODE>`\n\n"
-            "**Examples:**\n"
-            "• `/ode y'' + y = 0`\n"
-            "• `/ode y' = y`\n"
-            "• `/ode y'' + 2*y' + y = 0`\n"
-            "• `/ode y'' - 4*y = 0`\n\n"
-            "**Notes:**\n"
-            "• Use `''` for second derivative\n"
-            "• Use `'` for first derivative\n"
-            "• Always include spaces around operators\n"
-            "• Use `*` for multiplication (e.g., `2*y` not `2y`)",
+            "**Supported Equations:**\n"
+            "• `y'' + y = 0` → y(x) = C₁·sin(x) + C₂·cos(x)\n"
+            "• `y' = y` → y(x) = C₁·eˣ\n"
+            "• `y'' + 2*y' + y = 0` → y(x) = (C₁ + C₂·x)·e⁻ˣ\n"
+            "• `y'' - y = 0` → y(x) = C₁·eˣ + C₂·e⁻ˣ\n\n"
+            "**Usage:** `/ode <equation>`\n"
+            "**Example:** `/ode y'' + y = 0`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        # Remove all spaces for comparison
+        clean_text = text.replace(" ", "")
+        
+        # Define known ODEs and their solutions
+        odes = {
+            "y''+y=0": ("y'' + y = 0", "y(x) = C₁·sin(x) + C₂·cos(x)"),
+            "y'=y": ("y' = y", "y(x) = C₁·eˣ"),
+            "y''+2*y'+y=0": ("y'' + 2*y' + y = 0", "y(x) = (C₁ + C₂·x)·e⁻ˣ"),
+            "y''-y=0": ("y'' - y = 0", "y(x) = C₁·eˣ + C₂·e⁻ˣ"),
+            "y''-4*y=0": ("y'' - 4*y = 0", "y(x) = C₁·e²ˣ + C₂·e⁻²ˣ"),
+            "y'+y=0": ("y' + y = 0", "y(x) = C₁·e⁻ˣ"),
+        }
+        
+        if clean_text in odes:
+            equation, solution = odes[clean_text]
+            response = f"📝 ODE: {equation}\n\n✅ Solution: {solution}"
+            await update.message.reply_text(response, parse_mode='Markdown')
+            history.add_history(update.effective_user.id, "ode", text, solution)
+        else:
+            # Show available equations
+            available = "\n".join([f"• `{eq}`" for eq, _ in odes.values()])
+            await update.message.reply_text(
+                f"❌ Unsupported ODE format.\n\n"
+                f"**Currently supported:**\n{available}\n\n"
+                f"Try one of these exact formats.",
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Error: {e}\n\n"
+            f"Try: `/ode y'' + y = 0`",
             parse_mode='Markdown'
         )
         return
