@@ -47,4 +47,7 @@ def add_sat_handlers(app):
     # Test Generator (Premium)
     app.add_handler(CommandHandler("test", sat_commands.test_command))
     
+    # 👑 Owner Statistics (New)
+    app.add_handler(CommandHandler("botstats", sat_commands.botstats_command))
+    
     print("✅ SAT features loaded successfully!")
