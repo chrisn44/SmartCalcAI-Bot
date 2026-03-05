@@ -138,35 +138,47 @@ def gradient(scalar_field, variables=None):
     return steps, grad
 
 def divergence(vector_field, variables=None):
+    """Calculate divergence of a vector field.
+    Input format: "[x*y, y*z, z*x]" or "x*y, y*z, z*x"
+    """
     if variables is None:
         variables = ['x', 'y', 'z']
-    import ast
-    vec = ast.literal_eval(vector_field)
+    
+    # Clean up the input
+    vector_field = vector_field.strip()
+    
+    # Remove brackets if present
+    if vector_field.startswith('[') and vector_field.endswith(']'):
+        vector_field = vector_field[1:-1]
+    
+    # Split by commas
+    components = [comp.strip() for comp in vector_field.split(',')]
+    
+    if len(components) != len(variables):
+        raise ValueError(f"Vector must have {len(variables)} components for variables {variables}")
+    
     vars_sym = [sp.Symbol(v) for v in variables]
-    if len(vec) != len(vars_sym):
-        raise ValueError("Vector length must match number of variables")
-    comps = [safe_parse(comp) for comp in vec]
-    div = sum(sp.diff(comps[i], vars_sym[i]) for i in range(len(vars_sym)))
-    steps = [f"📝 Divergence of `{vector_field}`:"]
-    steps.append(f"✅ `∇·F = {sp.latex(div)}`")
+    
+    # Parse each component
+    comps = []
+    for comp in components:
+        try:
+            expr = safe_parse(comp)
+            comps.append(expr)
+        except Exception as e:
+            raise ValueError(f"Invalid component '{comp}': {e}")
+    
+    # Calculate divergence: ∂F₁/∂x + ∂F₂/∂y + ∂F₃/∂z
+    div = 0
+    steps = [f"📝 Vector field: F = {components}"]
+    
+    for i, (comp, var) in enumerate(zip(comps, vars_sym)):
+        derivative = sp.diff(comp, var)
+        div += derivative
+        steps.append(f"  ∂F{i+1}/∂{var} = {sp.latex(derivative)}")
+    
+    steps.append(f"✅ Divergence: ∇·F = {sp.latex(div)}")
     return steps, div
-
-def curl(vector_field, variables=None):
-    if variables is None:
-        variables = ['x', 'y', 'z']
-    import ast
-    vec = ast.literal_eval(vector_field)
-    vars_sym = [sp.Symbol(v) for v in variables]
-    if len(vec) != 3:
-        raise ValueError("Curl is defined for 3D fields only")
-    Fx, Fy, Fz = [safe_parse(comp) for comp in vec]
-    curl_x = sp.diff(Fz, vars_sym[1]) - sp.diff(Fy, vars_sym[2])
-    curl_y = sp.diff(Fx, vars_sym[2]) - sp.diff(Fz, vars_sym[0])
-    curl_z = sp.diff(Fy, vars_sym[0]) - sp.diff(Fx, vars_sym[1])
-    curl_vec = [curl_x, curl_y, curl_z]
-    steps = [f"📝 Curl of `{vector_field}`:"]
-    steps.append(f"✅ `∇×F = {sp.latex(curl_vec)}`")
-    return steps, curl_vec
 
 # ========== Numerical Methods ==========
 def fsolve(expr_str, var='x', guess=0.0):
