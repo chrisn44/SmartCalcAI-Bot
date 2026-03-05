@@ -170,7 +170,14 @@ def curl(vector_field, variables=None):
 
 # ========== Numerical Methods ==========
 def fsolve(expr_str, var='x', guess=0.0):
+    """Numerical root finding using SciPy's fsolve."""
     var_sym = sp.Symbol(var)
+    
+    # Handle equations with = sign
+    if '=' in expr_str:
+        left, right = expr_str.split('=')
+        expr_str = f"({left}) - ({right})"
+    
     expr = safe_parse(expr_str)
     f = sp.lambdify(var_sym, expr, modules='numpy')
     try:
