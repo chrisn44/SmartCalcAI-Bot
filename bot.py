@@ -87,19 +87,13 @@ async def reply_with_steps(update, steps, result=None):
         await update.message.reply_text(plain_msg)
 
 def check_free_limit(user_id):
-    """Return True if user is premium, owner, or under daily limit."""
-    # Owner always has unlimited access
-    if is_owner(user_id):
+    """Return True if user is premium or under daily limit."""
+    if is_owner(user_id):  # Owner always has access
         return True
-    
-    # Premium users have unlimited access
     if history.is_premium(user_id):
         return True
-    
-    # Free tier limit
     if config.FREE_DAILY_LIMIT == 0:
         return True
-    
     count = history.get_daily_count(user_id)
     return count < config.FREE_DAILY_LIMIT
 
@@ -132,6 +126,22 @@ async def enforce_limit(update: Update):
         reply_markup=reply_markup
     )
     return False
+
+def premium_required(func):
+    """Decorator for premium-only commands."""
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user_id = update.effective_user.id
+        if not history.is_premium(user_id) and not is_owner(user_id):
+            keyboard = [[InlineKeyboardButton("💎 Upgrade to Premium", callback_data="show_buy")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "🚫 This feature is for premium users only.\n"
+                "Upgrade to unlock 3D plots, system solvers, PDF exports, and more!",
+                reply_markup=reply_markup
+            )
+            return
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 # ========== Command Handlers ==========
 
