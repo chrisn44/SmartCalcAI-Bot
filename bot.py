@@ -956,7 +956,10 @@ async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "📊 **3D Plotter**\n\n"
             "Usage: `/plot3d <f(x,y)> from <xmin> to <xmax> for <ymin> to <ymax>`\n"
-            "Example: `/plot3d x*y from -5 to 5 for -5 to 5`",
+            "Examples:\n"
+            "• `/plot3d x*y from -5 to 5 for -5 to 5`\n"
+            "• `/plot3d sin(x)*cos(y) from -3 to 3 for -3 to 3`\n"
+            "• `/plot3d x**2 - y**2 from -2 to 2 for -2 to 2`",
             parse_mode='Markdown'
         )
         return
@@ -965,6 +968,10 @@ async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
         func_part = parts[0].strip()
         range_parts = parts[1].split(" for ")
         
+        if len(range_parts) != 2:
+            await update.message.reply_text("❌ Invalid format. Use: from <xmin> to <xmax> for <ymin> to <ymax>")
+            return
+            
         x_range = range_parts[0].strip()
         y_range = range_parts[1].strip()
         
@@ -972,7 +979,7 @@ async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
         y_parts = y_range.split(" to ")
         
         if len(x_parts) != 2 or len(y_parts) != 2:
-            await update.message.reply_text("Please specify valid ranges")
+            await update.message.reply_text("❌ Please specify valid ranges (e.g., -5 to 5)")
             return
             
         xmin, xmax = float(x_parts[0]), float(x_parts[1])
@@ -981,8 +988,10 @@ async def plot3d(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buf = graphing.plot3d_function(func_part, xmin, xmax, ymin, ymax)
         await update.message.reply_photo(photo=buf, caption=f"📊 3D plot of {func_part}")
         history.add_history(update.effective_user.id, "plot3d", text, "3D plot")
+    except ValueError as e:
+        await update.message.reply_text(f"❌ Invalid number format: {e}")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}\n\nMake sure your function uses x and y variables correctly.")
 
 @premium_required
 async def system(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -991,17 +1000,68 @@ async def system(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🔢 **System of Equations**\n\n"
             "Usage: `/system <eq1, eq2> for <vars>`\n"
-            "Example: `/system x+y=5, 2x-y=1 for x,y`",
+            "Examples:\n"
+            "• `/system x+y=5, 2x-y=1 for x,y`\n"
+            "• `/system x^2+y^2=25, x-y=1 for x,y`\n"
+            "• `/system 2x+3y=8, 4x-5y=2 for x,y`",
             parse_mode='Markdown'
         )
         return
+    
     try:
         eqs_str, vars_str = text.split(" for ")
+        
+        # Clean up the equations string
+        eqs_str = eqs_str.strip()
+        vars_str = vars_str.strip()
+        
+        # Remove any extra spaces
+        eqs_str = re.sub(r'\s+', ' ', eqs_str)
+        
         steps, sol = calculator.solve_system(eqs_str, vars_str)
-        await reply_with_steps(update, steps, sol)
+        
+        # Format the solution nicely
+        if sol:
+            if isinstance(sol, dict):
+                # Single solution
+                sol_text = "\n".join([f"  {k} = {v}" for k, v in sol.items()])
+                formatted_sol = f"✅ **Solution:**\n{sol_text}"
+            elif isinstance(sol, list) and len(sol) > 0:
+                if isinstance(sol[0], dict):
+                    # Multiple solutions
+                    formatted_sol = "✅ **Solutions:**"
+                    for i, s in enumerate(sol):
+                        sol_text = "\n".join([f"    {k} = {v}" for k, v in s.items()])
+                        formatted_sol += f"\n\n**Solution {i+1}:**\n{sol_text}"
+                else:
+                    # List of values
+                    formatted_sol = f"✅ **Solution:** {sol}"
+            else:
+                formatted_sol = f"✅ **Solution:** {sol}"
+        else:
+            formatted_sol = "❌ No solutions found"
+        
+        # Send steps first, then the formatted solution
+        steps_text = "\n".join(steps)
+        await update.message.reply_text(
+            f"{steps_text}\n\n{formatted_sol}",
+            parse_mode='Markdown'
+        )
         history.add_history(update.effective_user.id, "system", text, str(sol))
+        
+    except ValueError as e:
+        await update.message.reply_text(
+            f"❌ Error: {e}\n\n"
+            f"Try this format:\n"
+            f"`/system x+y=5, 2x-y=1 for x,y`",
+            parse_mode='Markdown'
+        )
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(
+            f"❌ Error: {e}\n\n"
+            f"Make sure your equations are properly formatted with = signs.",
+            parse_mode='Markdown'
+        )
 
 @premium_required
 async def fit(update: Update, context: ContextTypes.DEFAULT_TYPE):
