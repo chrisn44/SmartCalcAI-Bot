@@ -74,9 +74,9 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📊 **Percentage Calculator**\n\n"
             "Usage: `/percent <expression>`\n"
             "Examples:\n"
-            "• `/percent 15% of 200`\n"
+            "• `/percent 15percent of 200`\n"
             "• `/percent what percent is 30 of 150`\n"
-            "• `/percent 25 is 20% of what`",
+            "• `/percent 25 is 20percent of what`",
             parse_mode='Markdown'
         )
         return
@@ -85,10 +85,10 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Simple parsing for common patterns
         text_lower = text.lower()
         
-        if '% of' in text_lower:
-            # Find percent of number: "15% of 200"
+        if 'percent of' in text_lower:
+            # Find percent of number: "15percent of 200"
             import re
-            match = re.search(r'(\d+)%\s+of\s+(\d+)', text)
+            match = re.search(r'(\d+)percent\s+of\s+(\d+)', text_lower)
             if match:
                 percent = float(match.group(1))
                 whole = float(match.group(2))
@@ -97,7 +97,7 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 history.add_history(update.effective_user.id, "percent", text, str(result))
                 return
                 
-        elif 'what percent' in text_lower or 'what %' in text_lower:
+        elif 'what percent' in text_lower:
             # Find what percent: "30 is what percent of 150"
             match = re.search(r'(\d+)\s+is\s+what\s+percent\s+of\s+(\d+)', text_lower)
             if match:
@@ -111,7 +111,7 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(
                 "❌ Format not recognized.\n"
-                "Try: `/percent 15% of 200` or `/percent what percent is 30 of 150`"
+                "Try: `/percent 15percent of 200` or `/percent what percent is 30 of 150`"
             )
             
     except Exception as e:
@@ -171,18 +171,18 @@ async def prob_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========== TRIGONOMETRY COMMANDS ==========
 
-async def trig_solve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /trig-solve command"""
+async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /trig command (was /trig-solve)"""
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
         await update.message.reply_text(
             "📐 **Trigonometric Equation Solver**\n\n"
-            "Usage: `/trig-solve <equation>`\n"
+            "Usage: `/trig <equation>`\n"
             "Examples:\n"
-            "• `/trig-solve sin(x) = 0.5`\n"
-            "• `/trig-solve cos(x) = 0`\n"
-            "• `/trig-solve tan(x) = 1`",
+            "• `/trig sin(x) = 0.5`\n"
+            "• `/trig cos(x) = 0`\n"
+            "• `/trig tan(x) = 1`",
             parse_mode='Markdown'
         )
         return
@@ -192,7 +192,7 @@ async def trig_solve_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if solutions is not None:
             result_str = ", ".join([str(s) for s in solutions])
             await reply_with_steps(update, steps, result_str)
-            history.add_history(update.effective_user.id, "trig-solve", text, result_str)
+            history.add_history(update.effective_user.id, "trig", text, result_str)
         else:
             await update.message.reply_text("❌ Could not solve the equation.")
     except Exception as e:
@@ -226,15 +226,15 @@ async def complex_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-async def complex_polar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /complex-polar command"""
+async def polar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /polar command (was /complex-polar)"""
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
         await update.message.reply_text(
             "🔢 **Complex to Polar Form**\n\n"
-            "Usage: `/complex-polar <complex>`\n"
-            "Example: `/complex-polar 1+i`",
+            "Usage: `/polar <complex>`\n"
+            "Example: `/polar 1+i`",
             parse_mode='Markdown'
         )
         return
@@ -245,7 +245,7 @@ async def complex_polar_command(update: Update, context: ContextTypes.DEFAULT_TY
             r, theta = result
             result_str = f"r = {r}, θ = {theta} rad"
             await reply_with_steps(update, steps, result_str)
-            history.add_history(update.effective_user.id, "complex-polar", text, result_str)
+            history.add_history(update.effective_user.id, "polar", text, result_str)
         else:
             await update.message.reply_text("❌ Could not convert to polar form.")
     except Exception as e:
@@ -254,14 +254,14 @@ async def complex_polar_command(update: Update, context: ContextTypes.DEFAULT_TY
 # ========== GEOMETRY COMMANDS ==========
 
 async def circle_area_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /circle-area command"""
+    """Handle /circle_area command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 1:
         await update.message.reply_text(
             "⭕ **Circle Area**\n\n"
-            "Usage: `/circle-area <radius>`\n"
-            "Example: `/circle-area 5`",
+            "Usage: `/circle_area <radius>`\n"
+            "Example: `/circle_area 5`",
             parse_mode='Markdown'
         )
         return
@@ -270,19 +270,19 @@ async def circle_area_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         radius = float(args[0])
         steps, result = sat_calculator.circle_area(radius)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "circle-area", str(radius), str(result))
+        history.add_history(update.effective_user.id, "circle_area", str(radius), str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def circle_circumference_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /circle-circ command"""
+    """Handle /circle_circ command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 1:
         await update.message.reply_text(
             "⭕ **Circle Circumference**\n\n"
-            "Usage: `/circle-circ <radius>`\n"
-            "Example: `/circle-circ 5`",
+            "Usage: `/circle_circ <radius>`\n"
+            "Example: `/circle_circ 5`",
             parse_mode='Markdown'
         )
         return
@@ -291,19 +291,19 @@ async def circle_circumference_command(update: Update, context: ContextTypes.DEF
         radius = float(args[0])
         steps, result = sat_calculator.circle_circumference(radius)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "circle-circ", str(radius), str(result))
+        history.add_history(update.effective_user.id, "circle_circ", str(radius), str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def sphere_volume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /sphere-volume command"""
+    """Handle /sphere_volume command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 1:
         await update.message.reply_text(
             "🌐 **Sphere Volume**\n\n"
-            "Usage: `/sphere-volume <radius>`\n"
-            "Example: `/sphere-volume 5`",
+            "Usage: `/sphere_volume <radius>`\n"
+            "Example: `/sphere_volume 5`",
             parse_mode='Markdown'
         )
         return
@@ -312,19 +312,19 @@ async def sphere_volume_command(update: Update, context: ContextTypes.DEFAULT_TY
         radius = float(args[0])
         steps, result = sat_calculator.sphere_volume(radius)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "sphere-volume", str(radius), str(result))
+        history.add_history(update.effective_user.id, "sphere_volume", str(radius), str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def cylinder_volume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /cylinder-volume command"""
+    """Handle /cylinder_volume command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
             "🥫 **Cylinder Volume**\n\n"
-            "Usage: `/cylinder-volume <radius> <height>`\n"
-            "Example: `/cylinder-volume 5 10`",
+            "Usage: `/cylinder_volume <radius> <height>`\n"
+            "Example: `/cylinder_volume 5 10`",
             parse_mode='Markdown'
         )
         return
@@ -334,19 +334,19 @@ async def cylinder_volume_command(update: Update, context: ContextTypes.DEFAULT_
         height = float(args[1])
         steps, result = sat_calculator.cylinder_volume(radius, height)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "cylinder-volume", f"{radius} {height}", str(result))
+        history.add_history(update.effective_user.id, "cylinder_volume", f"{radius} {height}", str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def rectangle_area_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /rectangle-area command"""
+    """Handle /rectangle_area command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
             "📏 **Rectangle Area**\n\n"
-            "Usage: `/rectangle-area <length> <width>`\n"
-            "Example: `/rectangle-area 5 3`",
+            "Usage: `/rectangle_area <length> <width>`\n"
+            "Example: `/rectangle_area 5 3`",
             parse_mode='Markdown'
         )
         return
@@ -356,19 +356,19 @@ async def rectangle_area_command(update: Update, context: ContextTypes.DEFAULT_T
         width = float(args[1])
         steps, result = sat_calculator.rectangle_area(length, width)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "rectangle-area", f"{length} {width}", str(result))
+        history.add_history(update.effective_user.id, "rectangle_area", f"{length} {width}", str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def triangle_area_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /triangle-area command"""
+    """Handle /triangle_area command"""
     if not await enforce_limit(update): return
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
             "📐 **Triangle Area**\n\n"
-            "Usage: `/triangle-area <base> <height>`\n"
-            "Example: `/triangle-area 6 4`",
+            "Usage: `/triangle_area <base> <height>`\n"
+            "Example: `/triangle_area 6 4`",
             parse_mode='Markdown'
         )
         return
@@ -378,7 +378,7 @@ async def triangle_area_command(update: Update, context: ContextTypes.DEFAULT_TY
         height = float(args[1])
         steps, result = sat_calculator.triangle_area(base, height)
         await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "triangle-area", f"{base} {height}", str(result))
+        history.add_history(update.effective_user.id, "triangle_area", f"{base} {height}", str(result))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
