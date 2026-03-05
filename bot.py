@@ -33,13 +33,12 @@ logger = logging.getLogger(__name__)
 # ========== Helper Functions ==========
 
 async def reply_with_steps(update, steps, result=None):
-    """Send steps as formatted text."""
     msg = ""
     for s in steps:
         msg += s + "\n"
     if result is not None and not isinstance(result, str):
-        msg += f"\n**Result:** `{result}`"
-    await update.message.reply_text(msg, parse_mode='Markdown')
+        msg += f"\nResult: {result}"  # Removed Markdown formatting
+    await update.message.reply_text(msg)  # Removed parse_mode
 
 def check_free_limit(user_id):
     """Return True if user is premium or under daily limit."""
