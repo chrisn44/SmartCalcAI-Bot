@@ -31,114 +31,151 @@ class PremiumSmartInterpreter:
         # Load all the smart patterns
         self.setup_patterns()
     
-    def setup_patterns(self):
-        """Setup all the pattern matching rules"""
+def setup_patterns(self):
+    """Setup all the pattern matching rules"""
+    
+    # ===== DERIVATIVE PATTERNS =====
+    self.derive_patterns = [
+        # Simple forms
+        (r'(?:find|what is|calculate|get)\s+(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
+        (r'(?:differentiate|derive)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
+        (r'^d/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dx'),
+        (r'^d([a-z]?)/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dxdy'),
+        (r'f\'(?:\(([a-z])\))?\s*=\s*(.+?)$', 'derive_fprime'),
+        (r'`?\s*\\frac\{d\}\{d([a-z])\}\s*\(\s*(.+?)\s*\)`?', 'derive_dx'),
         
-        # ===== DERIVATIVE PATTERNS =====
-        self.derive_patterns = [
-            # Simple forms
-            (r'(?:find|what is|calculate|get)\s+(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
-            (r'(?:differentiate|derive)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'derive'),
-            (r'^d/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dx'),
-            (r'^d([a-z]?)/d([a-z])\s*\(\s*(.+?)\s*\)$', 'derive_dxdy'),
-            
-            # Question forms
-            (r'what(?:\s+is)?\s+the\s+derivative\s+of\s+(.+?)\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z])', 'derive'),
-            (r'how to (?:differentiate|find derivative of)\s+(.+?)$', 'derive'),
-            
-            # Mathematical notation
-            (r'`?\s*\\frac\{d\}\{d([a-z])\}\s*\(\s*(.+?)\s*\)`?', 'derive_dx'),
-            (r'`?\s*f\'(?:\(([a-z])\))?\s*=\s*(.+?)`?', 'derive_fprime'),
-        ]
+        # Question forms
+        (r'what(?:\s+is)?\s+the\s+derivative\s+of\s+(.+?)\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z])', 'derive'),
+        (r'how to (?:differentiate|find derivative of)\s+(.+?)$', 'derive'),
+        (r'give me the derivative of (.+?)$', 'derive'),
+        (r'compute the derivative of (.+?)$', 'derive'),
         
-        # ===== INTEGRAL PATTERNS =====
-        self.integral_patterns = [
-            # Definite integrals
-            (r'(?:integrate|integral of)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'definite'),
-            (r'∫[_\^]?\{?([0-9.-]+)\}?[\^]?\{?([0-9.-]+)\}?\s*(.+?)\s*d([a-z])', 'definite_unicode'),
-            (r'what(?:\s+is)?\s+the\s+integral\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'definite'),
-            
-            # Indefinite integrals
-            r'(?:integrate|integral of|find antiderivative of)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$',
-            r'indefinite\s+integral\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$',
-            r'∫\s*(.+?)\s*d([a-z])',
-        ]
+        # Function forms
+        (r'differentiate (.+?) with respect to ([a-z])', 'derive'),
+        (r'derivative of (.+?) with respect to ([a-z])', 'derive'),
+        (r'd/d([a-z])\s*\(\s*(.+?)\s*\)', 'derive_dx'),
+    ]
+    
+    # ===== INTEGRAL PATTERNS =====
+    self.integral_patterns = [
+        # Definite integrals
+        (r'(?:integrate|integral of)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'definite'),
+        (r'∫[_\^]?\{?([0-9.-]+)\}?[\^]?\{?([0-9.-]+)\}?\s*(.+?)\s*d([a-z])', 'definite_unicode'),
+        (r'what(?:\s+is)?\s+the\s+integral\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'definite'),
+        (r'calculate the integral of (.+?) from ([0-9.-]+) to ([0-9.-]+)', 'definite'),
+        (r'find the definite integral of (.+?) between ([0-9.-]+) and ([0-9.-]+)', 'definite'),
         
-        # ===== LIMIT PATTERNS =====
-        self.limit_patterns = [
-            r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to|→)\s*([0-9.infinity-]+)',
-            r'lim\s*_{?([a-z])\s*(?:->|→)?\s*([0-9.infinity-]+)}?\s+(.+?)$',
-            r'what(?:\s+is)?\s+the\s+limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity-]+)',
-            r'\\lim_{([a-z])\s*\\to\s*([0-9.infinity-]+)}\s*(.+?)$',
-        ]
-        
-        # ===== SERIES PATTERNS =====
-        self.series_patterns = [
-            r'(?:series|taylor series|expansion|taylor expansion)\s+of\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+(?:order|terms|up to)\s+([0-9]+))?',
-            r'expand\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+to\s+order\s+([0-9]+))?',
-            r'maclaurin\s+series\s+of\s+(.+?)(?:\s+to\s+order\s+([0-9]+))?',
-        ]
-        
-        # ===== EQUATION SOLVING PATTERNS =====
-        self.solve_patterns = [
-            r'solve\s+(?:the\s+)?(?:equation|for)\s+(.+?)(?:\s+for\s+([a-z]))?$',
-            r'find\s+(?:the\s+)?roots?\s+of\s+(.+?)$',
-            r'what\s+is\s+the\s+solution\s+to\s+(.+?)$',
-            r'when\s+does\s+(.+?)\s*=\s*0',
-        ]
-        
-        # ===== PLOTTING PATTERNS =====
-        self.plot_patterns = [
-            r'(?:plot|graph|draw|sketch)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+for\s+([a-z]))?',
-            r'(?:plot|graph|draw)\s+(.+?)\s+(?:on|over)\s+\[([0-9.-]+),\s*([0-9.-]+)\]',
-            r'show\s+me\s+the\s+graph\s+of\s+(.+?)\s+between\s+([0-9.-]+)\s+and\s+([0-9.-]+)',
-        ]
-        
-        # ===== 3D PLOTTING PATTERNS (Premium) =====
-        self.plot3d_patterns = [
-            r'(?:plot3d|3d\s+plot|surface\s+plot)\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+for\s+([a-z])\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
-            r'plot\s+(.+?)\s+in\s+3d\s+with\s+x\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+and\s+y\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)',
-        ]
-        
-        # ===== SYSTEM OF EQUATIONS (Premium) =====
-        self.system_patterns = [
-            r'solve\s+(?:system|simultaneous equations?)\s+(.+?)\s+for\s+([a-z,]+)',
-            r'find\s+(?:the\s+)?values?\s+of\s+([a-z,]+)\s+that\s+satisfy\s+(.+?)$',
-            r'solve\s+(.+?)\s+and\s+(.+?)\s+simultaneously',
-        ]
-        
-        # ===== MATRIX PATTERNS =====
-        self.matrix_patterns = [
-            r'(?:matrix|matrices?)\s+multiply\s+(.+?)\s+(?:and|×|x|\*)\s+(.+?)$',
-            r'multiply\s+(.+?)\s+(?:and|by|×|x|\*)\s+(.+?)$',
-            r'(\[\[.+\]\])\s*\*+\s*(\[\[.+\]\])',
-            r'inverse\s+of\s+(.+?)$',
-            r'determinant\s+of\s+(.+?)$',
-        ]
-        
-        # ===== UNIT CONVERSION PATTERNS =====
-        self.unit_patterns = [
-            r'(?:convert|change)\s+([0-9.]+)\s*([a-z/°]+)\s+(?:to|into|in)\s+([a-z/°]+)',
-            r'([0-9.]+)\s*([a-z/°]+)\s+(?:to|in)\s+([a-z/°]+)',
-            r'how\s+many\s+([a-z/°]+)\s+(?:are|is)\s+([0-9.]+)\s*([a-z/°]+)',
-            r'what\s+is\s+([0-9.]+)\s*([a-z/°]+)\s+in\s+([a-z/°]+)',
-        ]
-        
-        # ===== STATISTICS PATTERNS =====
-        self.stat_patterns = [
-            r'(?:statistics?|summary|analyze)\s+(?:for|of)?\s*([0-9,\s\.]+)',
-            r'(?:mean|average)\s+of\s+([0-9,\s\.]+)',
-            r'median\s+of\s+([0-9,\s\.]+)',
-            r'standard\s+deviation\s+of\s+([0-9,\s\.]+)',
-            r'variance\s+of\s+([0-9,\s\.]+)',
-        ]
-        
-        # ===== DIFFERENTIAL EQUATIONS PATTERNS =====
-        self.ode_patterns = [
-            r'solve\s+(?:the\s+)?(?:ode|differential equation|diff eq)\s+(.+?)$',
-            r'(?:y\'\'?\s*[+\-*/=].+?)$',
-            r'dsolve\s+(.+?)$',
-        ]
+        # Indefinite integrals
+        (r'(?:integrate|integral of|find antiderivative of)\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'indefinite'),
+        (r'indefinite\s+integral\s+of\s+(.+?)(?:\s+(?:with respect to|w\.?r\.?t\.?)\s+([a-z]))?$', 'indefinite'),
+        (r'∫\s*(.+?)\s*d([a-z])', 'indefinite_unicode'),
+        (r'find the integral of (.+?)$', 'indefinite'),
+        (r'compute the integral of (.+?)$', 'indefinite'),
+    ]
+    
+    # ===== LIMIT PATTERNS =====
+    self.limit_patterns = [
+        (r'limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to|→)\s*([0-9.infinity-]+)', 'standard'),
+        (r'lim\s*_{?([a-z])\s*(?:->|→)?\s*([0-9.infinity-]+)}?\s+(.+?)$', 'lim_format'),
+        (r'what(?:\s+is)?\s+the\s+limit\s+of\s+(.+?)\s+as\s+([a-z])\s*(?:->|→|approaches|to)\s*([0-9.infinity-]+)', 'standard'),
+        (r'\\lim_{([a-z])\s*\\to\s*([0-9.infinity-]+)}\s*(.+?)$', 'latex'),
+        (r'find the limit of (.+?) as ([a-z]) approaches ([0-9.infinity-]+)', 'standard'),
+        (r'compute the limit of (.+?) when ([a-z]) -> ([0-9.infinity-]+)', 'standard'),
+    ]
+    
+    # ===== SERIES PATTERNS =====
+    self.series_patterns = [
+        (r'(?:series|taylor series|expansion|taylor expansion)\s+of\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+(?:order|terms|up to)\s+([0-9]+))?', 'standard'),
+        (r'expand\s+(.+?)\s+(?:about|around|at)\s+([0-9.-]+)(?:\s+to\s+order\s+([0-9]+))?', 'standard'),
+        (r'maclaurin\s+series\s+of\s+(.+?)(?:\s+to\s+order\s+([0-9]+))?', 'maclaurin'),
+        (r'find the series expansion of (.+?) around ([0-9.-]+)', 'standard'),
+        (r'taylor series of (.+?) at ([0-9.-]+)', 'standard'),
+    ]
+    
+    # ===== EQUATION SOLVING PATTERNS =====
+    self.solve_patterns = [
+        (r'solve\s+(?:the\s+)?(?:equation|for)\s+(.+?)(?:\s+for\s+([a-z]))?$', 'standard'),
+        (r'find\s+(?:the\s+)?roots?\s+of\s+(.+?)$', 'roots'),
+        (r'what\s+is\s+the\s+solution\s+to\s+(.+?)$', 'standard'),
+        (r'when\s+does\s+(.+?)\s*=\s*0', 'zero'),
+        (r'solve for ([a-z]) in (.+?)$', 'solve_for'),
+        (r'find x such that (.+?)$', 'find_x'),
+    ]
+    
+    # ===== PLOTTING PATTERNS =====
+    self.plot_patterns = [
+        (r'(?:plot|graph|draw|sketch)\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)(?:\s+for\s+([a-z]))?', 'standard'),
+        (r'(?:plot|graph|draw)\s+(.+?)\s+(?:on|over)\s+\[([0-9.-]+),\s*([0-9.-]+)\]', 'bracket'),
+        (r'show\s+me\s+the\s+graph\s+of\s+(.+?)\s+between\s+([0-9.-]+)\s+and\s+([0-9.-]+)', 'between'),
+        (r'visualize\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'visualize'),
+        (r'plot function (.+?) on interval \[([0-9.-]+), ([0-9.-]+)\]', 'function'),
+    ]
+    
+    # ===== BASIC ARITHMETIC PATTERNS =====
+    self.calc_patterns = [
+        (r'^(.+?)\s*=\s*$', 'equation'),
+        (r'^(.+?)\??$', 'question'),
+        (r'what is (.+?)$', 'what_is'),
+        (r'calculate (.+?)$', 'calculate'),
+        (r'compute (.+?)$', 'compute'),
+        (r'evaluate (.+?)$', 'evaluate'),
+        (r'simplify (.+?)$', 'simplify'),
+    ]
+    
+    # ===== 3D PLOTTING PATTERNS (Premium) =====
+    self.plot3d_patterns = [
+        (r'(?:plot3d|3d\s+plot|surface\s+plot)\s+of\s+(.+?)\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+for\s+([a-z])\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', 'standard'),
+        (r'plot\s+(.+?)\s+in\s+3d\s+with\s+x\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)\s+and\s+y\s+from\s+([0-9.-]+)\s+to\s+([0-9.-]+)', '3d'),
+        (r'3d plot of (.+?) for x in \[([0-9.-]+), ([0-9.-]+)\] and y in \[([0-9.-]+), ([0-9.-]+)\]', '3d_bracket'),
+    ]
+    
+    # ===== SYSTEM OF EQUATIONS (Premium) =====
+    self.system_patterns = [
+        (r'solve\s+(?:system|simultaneous equations?)\s+(.+?)\s+for\s+([a-z,]+)', 'standard'),
+        (r'find\s+(?:the\s+)?values?\s+of\s+([a-z,]+)\s+that\s+satisfy\s+(.+?)$', 'find_values'),
+        (r'solve\s+(.+?)\s+and\s+(.+?)\s+simultaneously', 'simultaneous'),
+        (r'system:\s+(.+?),\s*(.+?)$', 'system_comma'),
+    ]
+    
+    # ===== MATRIX PATTERNS =====
+    self.matrix_patterns = [
+        (r'(?:matrix|matrices?)\s+multiply\s+(.+?)\s+(?:and|×|x|\*)\s+(.+?)$', 'multiply'),
+        (r'multiply\s+(.+?)\s+(?:and|by|×|x|\*)\s+(.+?)$', 'multiply'),
+        (r'(\[\[.+\]\])\s*\*+\s*(\[\[.+\]\])', 'multiply_symbol'),
+        (r'inverse\s+of\s+(.+?)$', 'inverse'),
+        (r'determinant\s+of\s+(.+?)$', 'determinant'),
+        (r'transpose\s+of\s+(.+?)$', 'transpose'),
+        (r'eigenvalues?\s+of\s+(.+?)$', 'eigenvalues'),
+    ]
+    
+    # ===== UNIT CONVERSION PATTERNS =====
+    self.unit_patterns = [
+        (r'(?:convert|change)\s+([0-9.]+)\s*([a-z/°]+)\s+(?:to|into|in)\s+([a-z/°]+)', 'standard'),
+        (r'([0-9.]+)\s*([a-z/°]+)\s+(?:to|in)\s+([a-z/°]+)', 'simple'),
+        (r'how\s+many\s+([a-z/°]+)\s+(?:are|is)\s+([0-9.]+)\s*([a-z/°]+)', 'how_many'),
+        (r'what\s+is\s+([0-9.]+)\s*([a-z/°]+)\s+in\s+([a-z/°]+)', 'what_is'),
+        (r'([0-9.]+)\s*(?:°?[FCK]|celsius|fahrenheit|kelvin)\s+to\s+([°?[FCK]|celsius|fahrenheit|kelvin)', 'temperature'),
+    ]
+    
+    # ===== STATISTICS PATTERNS =====
+    self.stat_patterns = [
+        (r'(?:statistics?|summary|analyze)\s+(?:for|of)?\s*([0-9,\s\.]+)', 'general'),
+        (r'(?:mean|average)\s+of\s+([0-9,\s\.]+)', 'mean'),
+        (r'median\s+of\s+([0-9,\s\.]+)', 'median'),
+        (r'standard\s+deviation\s+of\s+([0-9,\s\.]+)', 'std'),
+        (r'variance\s+of\s+([0-9,\s\.]+)', 'variance'),
+        (r'mode\s+of\s+([0-9,\s\.]+)', 'mode'),
+        (r'range\s+of\s+([0-9,\s\.]+)', 'range'),
+        (r'quartiles?\s+of\s+([0-9,\s\.]+)', 'quartiles'),
+    ]
+    
+    # ===== DIFFERENTIAL EQUATIONS PATTERNS =====
+    self.ode_patterns = [
+        (r'solve\s+(?:the\s+)?(?:ode|differential equation|diff eq)\s+(.+?)$', 'standard'),
+        (r'(?:y\'\'?[\s+].+?=0)$', 'ode_format'),
+        (r'dsolve\s+(.+?)$', 'dsolve'),
+        (r'(?:y\'|y\'\'|dy/dx|d2y/dx2).*?=.*?$', 'derivative_format'),
+    ]
     
     def interpret(self, user_text: str) -> dict:
         """Interpret natural language math queries using pattern matching."""
@@ -420,19 +457,58 @@ class PremiumSmartInterpreter:
                 }
         
         # ===== BASIC CALCULATION FALLBACK =====
-        # Try to extract simple arithmetic
-        arithmetic_pattern = r'([0-9\s\+\-\*\/\^\(\)\.]+)'
-        match = re.search(arithmetic_pattern, user_text)
-        if match:
-            expr = match.group(1).strip()
-            if any(c in expr for c in ['+', '-', '*', '/', '^']):
-                return {
-                    "command": "calc",
-                    "expression": expr,
-                    "explanation": "Calculating expression",
-                    "premium": False,
-                    "confidence": "low"
-                }
+        # Try to extract simple arithmetic with better pattern matching
+        arithmetic_patterns = [
+            (r'what is (?:the value of )?\s*([0-9\s\+\-\*\/\^\(\)\.]+)', 'what_is'),
+            (r'calculate\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'calculate'),
+            (r'compute\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'compute'),
+            (r'evaluate\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'evaluate'),
+            (r'solve\s+([0-9\s\+\-\*\/\^\(\)\.]+)', 'solve'),
+            (r'^([0-9]+)\s*\+\s*([0-9]+)$', 'addition'),
+            (r'^([0-9]+)\s*\-\s*([0-9]+)$', 'subtraction'),
+            (r'^([0-9]+)\s*\*\s*([0-9]+)$', 'multiplication'),
+            (r'^([0-9]+)\s*\/\s*([0-9]+)$', 'division'),
+            (r'^([0-9]+)\s*\^\s*([0-9]+)$', 'power'),
+            (r'([0-9\s\+\-\*\/\^\(\)\.]+)', 'generic'),
+        ]
+        
+        for pattern, calc_type in arithmetic_patterns:
+            match = re.search(pattern, user_text)
+            if match:
+                if calc_type in ['addition', 'subtraction', 'multiplication', 'division', 'power']:
+                    # Handle simple binary operations
+                    a, b = match.group(1), match.group(2)
+                    op_map = {
+                        'addition': '+',
+                        'subtraction': '-',
+                        'multiplication': '*',
+                        'division': '/',
+                        'power': '^'
+                    }
+                    expr = f"{a} {op_map[calc_type]} {b}"
+                    confidence = "high"
+                else:
+                    # Handle general expressions
+                    expr = match.group(1).strip()
+                    # Clean up the expression
+                    expr = re.sub(r'[^0-9x\s\+\-\*\/\^\(\)\.]', '', expr)
+                    confidence = "medium" if calc_type != 'generic' else "low"
+                
+                # Only proceed if it looks like a math expression
+                if expr and any(c in expr for c in ['+', '-', '*', '/', '^']):
+                    # Check if it's a simple calculation (no variables)
+                    if 'x' not in expr:
+                        explanation = f"Calculating: {expr}"
+                    else:
+                        explanation = f"Expression with variable: {expr}"
+                    
+                    return {
+                        "command": "calc",
+                        "expression": expr,
+                        "explanation": explanation,
+                        "premium": False,
+                        "confidence": confidence
+                    }
         
         # No matches found
         return {
