@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes
 import history
 import sat_calculator
 from bot import reply_with_steps, enforce_limit, premium_required  # Import from main bot
+import os
 
 # ========== ADVANCED ALGEBRA COMMANDS ==========
 
@@ -74,9 +75,9 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📊 **Percentage Calculator**\n\n"
             "Usage: `/percent <expression>`\n"
             "Examples:\n"
-            "• `/percent 15percent of 200`\n"
+            "• `/percent 15% of 200`\n"
             "• `/percent what percent is 30 of 150`\n"
-            "• `/percent 25 is 20percent of what`",
+            "• `/percent 25 is 20% of what`",
             parse_mode='Markdown'
         )
         return
@@ -85,10 +86,10 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Simple parsing for common patterns
         text_lower = text.lower()
         
-        if 'percent of' in text_lower:
-            # Find percent of number: "15percent of 200"
+        if '%' in text_lower or 'percent' in text_lower:
+            # Handle "15% of 200" format
             import re
-            match = re.search(r'(\d+)percent\s+of\s+(\d+)', text_lower)
+            match = re.search(r'(\d+)%?\s+of\s+(\d+)', text_lower)
             if match:
                 percent = float(match.group(1))
                 whole = float(match.group(2))
@@ -96,10 +97,9 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await reply_with_steps(update, steps, result)
                 history.add_history(update.effective_user.id, "percent", text, str(result))
                 return
-                
-        elif 'what percent' in text_lower:
-            # Find what percent: "30 is what percent of 150"
-            match = re.search(r'(\d+)\s+is\s+what\s+percent\s+of\s+(\d+)', text_lower)
+            
+            # Handle "what percent is 30 of 150" format
+            match = re.search(r'what\s+percent\s+is\s+(\d+)\s+of\s+(\d+)', text_lower)
             if match:
                 part = float(match.group(1))
                 whole = float(match.group(2))
@@ -107,12 +107,21 @@ async def percent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await reply_with_steps(update, steps, result)
                 history.add_history(update.effective_user.id, "percent", text, str(result))
                 return
+            
+            # Handle "25 is 20% of what" format
+            match = re.search(r'(\d+)\s+is\s+(\d+)%\s+of\s+what', text_lower)
+            if match:
+                part = float(match.group(1))
+                percent = float(match.group(2))
+                steps, result = sat_calculator.calculate_percentage(part=part, whole=None, percent=percent)
+                await reply_with_steps(update, steps, result)
+                history.add_history(update.effective_user.id, "percent", text, str(result))
+                return
                 
-        else:
-            await update.message.reply_text(
-                "❌ Format not recognized.\n"
-                "Try: `/percent 15percent of 200` or `/percent what percent is 30 of 150`"
-            )
+        await update.message.reply_text(
+            "❌ Format not recognized.\n"
+            "Try: `/percent 15% of 200` or `/percent what percent is 30 of 150`"
+        )
             
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
@@ -386,7 +395,7 @@ async def pythagorean_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Handle /pythagorean command"""
     if not await enforce_limit(update): return
     args = context.args
-    if len(args) < 3:
+    if len(args) < 2:
         await update.message.reply_text(
             "📐 **Pythagorean Theorem**\n\n"
             "Usage: `/pythagorean <a|b|c> <value> ...`\n"
@@ -420,7 +429,104 @@ async def pythagorean_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ========== TEST GENERATOR (PREMIUM) ==========
+# ========== CURVE FITTING (Premium) ==========
+
+@premium_required
+async def fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /fit command - Premium only"""
+    args = context.args
+    if len(args) < 3:
+        await update.message.reply_text(
+            "📈 **Curve Fitting (Premium)**\n\n"
+            "Usage: `/fit <function> <x_values> <y_values>`\n\n"
+            "**Examples:**\n"
+            "• `/fit a*exp(b*x)+c 1,2,3 2,4,8`\n"
+            "• `/fit a*x+b 1,2,3,4 2,4,6,8`\n"
+            "• `/fit a*x^2+b*x+c 0,1,2 0,1,4`\n\n"
+            "**Parameters:**\n"
+            "• Use letters (a,b,c,etc.) for parameters to fit\n"
+            "• Use `x` as the variable\n"
+            "• Separate values with commas",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        # Parse arguments
+        func_template = args[0]
+        x_data = args[1]
+        y_data = args[2]
+        
+        steps, results = sat_calculator.curve_fit_function(func_template, x_data, y_data)
+        
+        if results:
+            # Send steps as text
+            steps_text = "\n".join(steps)
+            await update.message.reply_text(steps_text, parse_mode='Markdown')
+            
+            # Send the plot if available
+            if 'plot' in results:
+                await update.message.reply_photo(
+                    photo=results['plot'],
+                    caption=f"📈 Fitted curve: {results['fitted_function']}"
+                )
+            
+            # Store results in history
+            result_summary = f"R²={results['r_squared']:.4f}, params={results['parameters']}"
+            history.add_history(update.effective_user.id, "fit", 
+                               f"{func_template} {x_data} {y_data}", result_summary)
+        else:
+            await update.message.reply_text("❌ Curve fitting failed. Check your function and data.")
+            
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+# ========== PDF EXPORT (Premium) ==========
+
+@premium_required
+async def exportpdf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /exportpdf command - Premium only"""
+    user_id = update.effective_user.id
+    
+    # Send initial status
+    status_msg = await update.message.reply_text("📄 **Generating PDF report...**", parse_mode='Markdown')
+    
+    try:
+        # Get user's calculation history
+        history_data = history.get_history(user_id, limit=50)  # Get last 50 calculations
+        
+        # Get any current calculations to include (optional)
+        calculations = []
+        
+        steps, pdf_path = sat_calculator.export_to_pdf(user_id, history_data, calculations)
+        
+        if pdf_path and os.path.exists(pdf_path):
+            # Send the PDF file
+            with open(pdf_path, 'rb') as pdf_file:
+                await update.message.reply_document(
+                    document=pdf_file,
+                    filename=f"calc_history_{user_id}.pdf",
+                    caption="📊 **Your Calculation History**\n\nGenerated by SmartCalcAI Bot"
+                )
+            
+            # Delete the status message
+            await status_msg.delete()
+            
+            # Clean up the temporary file
+            try:
+                os.remove(pdf_path)
+            except:
+                pass
+            
+            # Log success
+            history.add_history(user_id, "exportpdf", "", "PDF exported successfully")
+        else:
+            await status_msg.edit_text("❌ Failed to generate PDF.")
+            
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Error generating PDF: {e}")
+
+# ========== TEST GENERATOR (Premium) ==========
 
 @premium_required
 async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
