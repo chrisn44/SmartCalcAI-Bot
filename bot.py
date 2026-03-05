@@ -1389,47 +1389,84 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 # ========== Natural Language Handler ==========
 
 async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle non-command messages."""
+    """Handle non-command messages - Premium feature with built-in AI!"""
     user_text = update.message.text
     user_id = update.effective_user.id
     
-    # Check if user has API key
-    provider, api_key = history.get_user_key(user_id)
+    # Use built-in smart interpreter (NO API KEYS NEEDED!)
+    from llm_integration import interpret_math_query
+    interpretation = interpret_math_query(user_text, None)
     
-    if provider and api_key:
-        # Use their key for interpretation
-        try:
-            llm = LLMHandler(provider, api_key)
-            interpretation = interpret_math_query(user_text, llm)
-            
-            expr = interpretation.get("expression")
-            explanation = interpretation.get("explanation")
-            cmd = interpretation.get("command", "none")
-            
-            if expr and cmd != "none":
-                await update.message.reply_text(
-                    f"🧠 **Interpretation:** {explanation}\n\n"
-                    f"Try using: `/{cmd} {expr}`",
-                    parse_mode='Markdown'
-                )
-            else:
-                await update.message.reply_text(
-                    f"🧠 **Interpretation:** {explanation}\n\n"
-                    f"I couldn't map that to a command. Try using one of the commands in /start",
-                    parse_mode='Markdown'
-                )
-        except Exception as e:
-            await update.message.reply_text(
-                f"❌ Error with your API key: {e}\n"
-                f"Try /removekey and set it again."
-            )
-    else:
-        # No key - guide to commands
+    # Check if this is a premium feature and user isn't premium/owner
+    if interpretation.get("premium", False) and not history.is_premium(user_id) and not is_owner(user_id):
+        # This is a premium feature but user isn't premium
+        keyboard = [[InlineKeyboardButton("💎 Upgrade to Premium", callback_data="show_buy")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "I didn't understand that as a command.\n\n"
-            "To use natural language, set your API key with /setkey.\n"
-            "Otherwise, use one of the commands listed in /start."
+            f"🔮 **Premium Feature!**\n\n"
+            f"{interpretation.get('explanation', 'Natural language understanding')}\n\n"
+            f"This is a premium feature. Upgrade to unlock natural language processing!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
+        return
+    
+    # User is premium, owner, or feature is free
+    expr = interpretation.get("expression")
+    explanation = interpretation.get("explanation")
+    cmd = interpretation.get("command", "none")
+    
+    if expr and cmd != "none":
+        # Build the command suggestion based on command type
+        if cmd == "integrate" and interpretation.get("limits"):
+            # Handle definite integral
+            limits = interpretation.get("limits")
+            var = interpretation.get("variable", "x")
+            cmd_text = f"/{cmd} {expr} from {limits[0]} to {limits[1]}"
+        elif cmd == "plot" and interpretation.get("xmin"):
+            # Handle plot with range
+            cmd_text = f"/{cmd} {expr} from {interpretation['xmin']} to {interpretation['xmax']}"
+        elif cmd == "plot3d" and interpretation.get("xmin"):
+            # Handle 3D plot (premium)
+            cmd_text = f"/{cmd} {expr} from {interpretation['xmin']} to {interpretation['xmax']} for {interpretation['ymin']} to {interpretation['ymax']}"
+        elif cmd == "unit":
+            # Handle unit conversion
+            cmd_text = f"/{cmd} {interpretation['expression']}"
+        elif interpretation.get("variable") and cmd not in ["calc", "stat"]:
+            # Handle commands with variables
+            cmd_text = f"/{cmd} {expr} {interpretation['variable']}"
+        else:
+            # Default format
+            cmd_text = f"/{cmd} {expr}"
+        
+        # Add premium badge if it's a premium feature
+        premium_badge = " 💎" if interpretation.get("premium", False) else ""
+        
+        await update.message.reply_text(
+            f"🧠 **Interpretation{premium_badge}:** {explanation}\n\n"
+            f"Try using: `{cmd_text}`",
+            parse_mode='Markdown'
+        )
+    else:
+        # No command matched - upsell premium
+        if is_owner(user_id) or history.is_premium(user_id):
+            # Premium/owner users get more helpful message
+            await update.message.reply_text(
+                f"🔍 I couldn't understand that as a math query.\n\n"
+                f"Try being more specific, or use commands from /start",
+                parse_mode='Markdown'
+            )
+        else:
+            # Free users get upsell
+            keyboard = [[InlineKeyboardButton("💎 Upgrade to Premium", callback_data="show_buy")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                f"🔮 **Premium Feature!**\n\n"
+                f"Natural language understanding is a premium feature.\n"
+                f"Upgrade to ask questions in plain English!",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
 
 # ========== Error Handler ==========
 
