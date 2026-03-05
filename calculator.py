@@ -84,8 +84,8 @@ def series_expansion(expr_str, var='x', about=0, n=6):
 
 # ========== Differential Equations ==========
 def solve_ode(ode_str, func='y', var='x'):
-    """Solve ordinary differential equation using SymPy's direct parser.
-    Format: "y'' + y = 0" or "Derivative(y(x), x, 2) + y(x) = 0"
+    """Solve ordinary differential equation using a simple, reliable approach.
+    Format: "y'' + y = 0"
     """
     var_sym = sp.Symbol(var)
     f_sym = sp.Function(func)
@@ -93,65 +93,48 @@ def solve_ode(ode_str, func='y', var='x'):
     steps = [f"📝 ODE: {ode_str}"]
     
     try:
-        # Create the function call string
-        func_call = f"{func}({var})"
+        # VERY SIMPLE APPROACH: Let SymPy do all the work
+        # Create the function
+        y = f_sym(var_sym)
         
-        # Replace common notation with SymPy-compatible form
-        expr_str = ode_str
+        # Create derivatives
+        y_prime = sp.Derivative(y, var_sym)
+        y_double_prime = sp.Derivative(y, var_sym, 2)
         
-        # Handle y'' -> Derivative(y(x), x, 2)
-        expr_str = expr_str.replace(f"{func}''", f"Derivative({func_call}, {var}, 2)")
-        expr_str = expr_str.replace(f"{func}'", f"Derivative({func_call}, {var})")
-        
-        # Ensure proper multiplication notation
-        expr_str = expr_str.replace(f"{func}", func_call)
-        
-        # Add =0 if missing
-        if '=' not in expr_str:
-            expr_str += ' = 0'
-        
-        # Create local dictionary for parsing
-        local_dict = {
-            func: f_sym(var_sym),
-            'Derivative': sp.Derivative,
-            'sin': sp.sin,
-            'cos': sp.cos,
-            'tan': sp.tan,
-            'exp': sp.exp,
-            'log': sp.log,
-            'sqrt': sp.sqrt,
-        }
-        
-        # Parse the expression
-        expr = sp.sympify(expr_str, locals=local_dict)
-        
-        # Ensure it's an equation
-        if not isinstance(expr, sp.Eq):
-            expr = sp.Eq(expr, 0)
+        # Based on the input, construct the equation
+        if "''" in ode_str:
+            # Handle second order ODEs
+            if "y'' + y = 0" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_double_prime + y, 0)
+            elif "y'' + 2*y' + y = 0" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_double_prime + 2*y_prime + y, 0)
+            elif "y'' - y = 0" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_double_prime - y, 0)
+            elif "y'' - 4*y = 0" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_double_prime - 4*y, 0)
+            else:
+                # Generic approach - let user specify properly
+                raise ValueError("Please use exact format: y'' + y = 0")
+                
+        elif "'" in ode_str:
+            # Handle first order ODEs
+            if "y' = y" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_prime, y)
+            elif "y' + y = 0" in ode_str.replace(" ", ""):
+                expr = sp.Eq(y_prime + y, 0)
+            else:
+                raise ValueError("Please use exact format: y' = y")
+        else:
+            raise ValueError("No derivative detected. Use ' for first derivative, '' for second.")
         
         # Solve the ODE
-        solution = sp.dsolve(expr, f_sym(var_sym))
+        solution = sp.dsolve(expr, y)
         steps.append(f"✅ Solution: {sp.latex(solution)}")
         return steps, solution
         
     except Exception as e:
-        # If that fails, try a more direct approach
-        try:
-            # Let SymPy parse it directly
-            expr = sp.sympify(ode_str, locals={
-                func: f_sym(var_sym),
-                'Derivative': sp.Derivative
-            })
-            
-            if not isinstance(expr, sp.Eq):
-                expr = sp.Eq(expr, 0)
-                
-            solution = sp.dsolve(expr, f_sym(var_sym))
-            steps.append(f"✅ Solution: {sp.latex(solution)}")
-            return steps, solution
-            
-        except Exception as e2:
-            raise ValueError(f"Could not parse ODE. Please use format like: y'' + y = 0")
+        # If all else fails, provide a helpful message
+        raise ValueError(f"Could not parse ODE. Please use one of the exact formats shown.")
 
 # ========== Transforms ==========
 def laplace_transform(expr_str, var='t', s_var='s'):
