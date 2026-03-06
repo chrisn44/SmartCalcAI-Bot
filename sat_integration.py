@@ -55,13 +55,19 @@ def add_sat_handlers(app):
     # 👑 Owner Statistics
     app.add_handler(CommandHandler("botstats", sat_commands.botstats_command))
     
-    # 📸 Photo Equation Solver (Premium)
+    # 📸 Photo Equation Solver (Premium) - ENHANCED
     try:
         from photo_solver_photo_handler import handle_photo
+        # Register for all possible image types
         app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-        print("✅ Photo equation solver handler registered")
+        print("✅ Photo handler registered for PHOTO")
+        
+        # Also handle documents that are images
+        app.add_handler(MessageHandler(filters.Document.IMAGE, handle_photo))
+        print("✅ Photo handler registered for Document.IMAGE")
+        
     except ImportError as e:
-        print(f"⚠️ Photo solver not available: {e}")
+        print(f"⚠️ Photo solver module not available: {e}")
     except Exception as e:
         print(f"⚠️ Error registering photo handler: {e}")
     
