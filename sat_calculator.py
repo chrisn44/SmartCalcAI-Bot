@@ -117,6 +117,7 @@ def solve_rational(eq_str, var='x'):
     try:
         # Clean the equation - remove spaces
         eq_str = eq_str.replace(' ', '')
+        print(f"🔍 Cleaned equation: '{eq_str}'")  # DEBUG
         
         # Check if equation contains '='
         if '=' not in eq_str:
@@ -125,22 +126,33 @@ def solve_rational(eq_str, var='x'):
         
         # Split into left and right sides
         left, right = eq_str.split('=')
+        print(f"🔍 Left side: '{left}', Right side: '{right}'")  # DEBUG
         
         # Create expression: left - right = 0
         expr_str = f"({left}) - ({right})"
+        print(f"🔍 Expression string: '{expr_str}'")  # DEBUG
         
         # Parse the expression
-        expr = sp.sympify(expr_str)
+        try:
+            expr = sp.sympify(expr_str)
+            print(f"🔍 Parsed expression: {expr}")  # DEBUG
+        except Exception as e:
+            print(f"❌ Sympify error: {e}")
+            steps.append(f"❌ Could not parse equation: {e}")
+            return steps, None
         
         # Combine into single fraction
         expr_combined = sp.together(expr)
+        print(f"🔍 Combined fraction: {expr_combined}")  # DEBUG
         numer, denom = sp.fraction(expr_combined)
+        print(f"🔍 Numerator: {numer}, Denominator: {denom}")  # DEBUG
         
         steps.append(f"• Combine terms: ${sp.latex(expr_combined)} = 0$")
         steps.append(f"• Set numerator = 0: ${sp.latex(numer)} = 0$")
         
         # Solve numerator
         solutions = sp.solve(numer, var_sym)
+        print(f"🔍 Solutions from numerator: {solutions}")  # DEBUG
         
         if not solutions:
             steps.append("• No solutions found")
@@ -152,11 +164,13 @@ def solve_rational(eq_str, var='x'):
             # Check if solution makes denominator zero
             try:
                 denom_val = denom.subs(var_sym, sol)
+                print(f"🔍 Checking solution {sol}, denominator value: {denom_val}")  # DEBUG
                 if denom_val != 0:
                     valid_solutions.append(sol)
                 else:
                     steps.append(f"• ❌ Extraneous root: {sol} makes denominator zero")
-            except:
+            except Exception as e:
+                print(f"❌ Error checking solution {sol}: {e}")
                 # If substitution fails, keep the solution
                 valid_solutions.append(sol)
         
@@ -176,6 +190,9 @@ def solve_rational(eq_str, var='x'):
             return steps, []
         
     except Exception as e:
+        print(f"❌ Exception in solve_rational: {e}")
+        import traceback
+        traceback.print_exc()
         steps.append(f"❌ Error: {str(e)}")
         return steps, None
 
