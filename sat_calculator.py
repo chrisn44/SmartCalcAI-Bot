@@ -32,8 +32,9 @@ def solve_quadratic(eq_str, var='x'):
     steps = [f"📐 **Quadratic Equation:** {eq_str}"]
     
     try:
-        # Clean the equation - remove spaces
+        # Clean the equation - remove spaces first
         eq_str = eq_str.replace(' ', '')
+        print(f"🔍 Cleaned equation: '{eq_str}'")  # Debug
         
         # Parse equation
         if '=' in eq_str:
@@ -47,13 +48,39 @@ def solve_quadratic(eq_str, var='x'):
             # If no equals sign, assume =0
             expr_str = eq_str
         
-        # Parse the expression
-        expr = sp.sympify(expr_str)
+        print(f"🔍 Expression string: '{expr_str}'")  # Debug
+        
+        # Parse the expression with additional transformations
+        from sympy.parsing.sympy_parser import (
+            parse_expr, standard_transformations, 
+            implicit_multiplication_application,
+            convert_xor, function_exponentiation
+        )
+        
+        transformations = (
+            standard_transformations +
+            (implicit_multiplication_application, convert_xor, function_exponentiation)
+        )
+        
+        try:
+            # First try with standard sympify
+            expr = sp.sympify(expr_str)
+            print(f"🔍 Sympify successful: {expr}")
+        except Exception as e:
+            print(f"🔍 Sympify failed: {e}, trying parse_expr")
+            # If that fails, try with the more flexible parser
+            local_dict = {var: var_sym}
+            expr = parse_expr(expr_str, transformations=transformations, 
+                            local_dict=local_dict, evaluate=False)
+            print(f"🔍 Parse_expr successful: {expr}")
+        
         expr = sp.expand(expr)
+        print(f"🔍 Expanded expression: {expr}")
         
         # Get polynomial coefficients
         poly = sp.Poly(expr, var_sym)
         coeffs = poly.all_coeffs()
+        print(f"🔍 Coefficients: {coeffs}")
         
         # Handle cases where degree < 2
         if len(coeffs) > 3:
@@ -103,6 +130,9 @@ def solve_quadratic(eq_str, var='x'):
             return steps, [complex(real_part, imag_part), complex(real_part, -imag_part)]
             
     except Exception as e:
+        print(f"❌ Exception in solve_quadratic: {e}")
+        import traceback
+        traceback.print_exc()
         steps.append(f"❌ Error: {str(e)}")
         return steps, None
 
