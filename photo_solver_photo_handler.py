@@ -1,8 +1,8 @@
 """
-Telegram handler for photo messages
+Telegram handler for photo messages - DEBUG VERSION
 """
 import os
-import tempfile
+import sys
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -11,11 +11,30 @@ from telegram.ext import ContextTypes
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# DEBUG: Print current directory and files
+current_dir = os.getcwd()
+logger.info(f"🔍 Current working directory: {current_dir}")
+
+# List all Python files in current directory
+try:
+    files = os.listdir(current_dir)
+    py_files = [f for f in files if f.endswith('.py')]
+    logger.info(f"🔍 Python files in directory: {py_files}")
+except Exception as e:
+    logger.error(f"🔍 Error listing directory: {e}")
+
+# DEBUG: Print Python path
+logger.info(f"🔍 Python path: {sys.path}")
+
 # Try different import strategies
 IMPORTS_SUCCESS = False
+ocr_engine = None
+parser = None
+solver = None
 
 # Strategy 1: Direct imports (files in same directory)
 try:
+    logger.info("🔍 Trying direct imports...")
     from photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
     from photo_solver_ocr_engine import OCREngine
     from photo_solver_equation_parser import EquationParser
@@ -23,18 +42,31 @@ try:
     IMPORTS_SUCCESS = True
     logger.info("✅ Direct imports successful")
 except ImportError as e:
-    logger.warning(f"Direct imports failed: {e}")
+    logger.error(f"❌ Direct imports failed: {e}")
     
-    # Strategy 2: Try relative imports (with dot)
+    # Strategy 2: Try with package name
     try:
-        from .photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
-        from .photo_solver_ocr_engine import OCREngine
-        from .photo_solver_equation_parser import EquationParser
-        from .photo_solver_solver import EquationSolver
+        logger.info("🔍 Trying package imports...")
+        from smartcalc_bot.photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
+        from smartcalc_bot.photo_solver_ocr_engine import OCREngine
+        from smartcalc_bot.photo_solver_equation_parser import EquationParser
+        from smartcalc_bot.photo_solver_solver import EquationSolver
         IMPORTS_SUCCESS = True
-        logger.info("✅ Relative imports successful")
+        logger.info("✅ Package imports successful")
     except ImportError as e:
-        logger.error(f"All import strategies failed: {e}")
+        logger.error(f"❌ Package imports failed: {e}")
+        
+        # Strategy 3: Try relative imports
+        try:
+            logger.info("🔍 Trying relative imports...")
+            from .photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
+            from .photo_solver_ocr_engine import OCREngine
+            from .photo_solver_equation_parser import EquationParser
+            from .photo_solver_solver import EquationSolver
+            IMPORTS_SUCCESS = True
+            logger.info("✅ Relative imports successful")
+        except ImportError as e:
+            logger.error(f"❌ Relative imports failed: {e}")
 
 # Initialize components (singletons) only if imports succeeded
 if IMPORTS_SUCCESS:
@@ -44,13 +76,10 @@ if IMPORTS_SUCCESS:
         solver = EquationSolver()
         logger.info("✅ Photo solver components initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize components: {e}")
+        logger.error(f"❌ Failed to initialize components: {e}")
         IMPORTS_SUCCESS = False
 else:
-    ocr_engine = None
-    parser = None
-    solver = None
-    logger.error("❌ Photo solver components not initialized due to import errors")
+    logger.error("❌ All import strategies failed")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -61,12 +90,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Log details about the photo
     if update.message.photo:
         photo_count = len(update.message.photo)
-        logger.info(f"Photo message received with {photo_count} sizes")
+        logger.info(f"📸 Photo message received with {photo_count} sizes")
         largest_photo = update.message.photo[-1]
-        logger.info(f"Largest photo size: {largest_photo.width}x{largest_photo.height}")
+        logger.info(f"📸 Largest photo size: {largest_photo.width}x{largest_photo.height}")
     
     user_id = update.effective_user.id
-    logger.info(f"User ID: {user_id}")
+    logger.info(f"👤 User ID: {user_id}")
     
     # Check if imports succeeded
     if not IMPORTS_SUCCESS:
@@ -81,7 +110,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from bot import is_owner, history
         logger.info("✅ Successfully imported from bot")
     except ImportError as e:
-        logger.error(f"Failed to import from bot: {e}")
+        logger.error(f"❌ Failed to import from bot: {e}")
         await update.message.reply_text(
             "❌ Internal error: Could not verify premium status."
         )
@@ -102,7 +131,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         logger.info("✅ Premium check passed")
     except Exception as e:
-        logger.error(f"Premium check failed: {e}")
+        logger.error(f"❌ Premium check failed: {e}")
         await update.message.reply_text(
             "❌ Error checking premium status. Please try again later."
         )
@@ -114,38 +143,38 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Get the largest photo
         photo = update.message.photo[-1]
-        logger.info(f"Processing photo: {photo.width}x{photo.height}")
+        logger.info(f"📸 Processing photo: {photo.width}x{photo.height}")
         
         # Download image
         file = await photo.get_file()
         image_bytes = await file.download_as_bytearray()
-        logger.info(f"Downloaded image: {len(image_bytes)} bytes")
+        logger.info(f"📸 Downloaded image: {len(image_bytes)} bytes")
         
         # Enhance image for OCR
-        logger.info("Enhancing image...")
+        logger.info("🔧 Enhancing image...")
         enhanced = enhance_image(image_bytes)
         
         # Extract equation text
         await status_msg.edit_text("🔍 Running OCR...")
-        logger.info("Running OCR...")
+        logger.info("🔍 Running OCR...")
         extracted_text, method = ocr_engine.extract_equation(image_bytes, enhanced)
         
         if not extracted_text:
-            logger.warning("No text extracted from image")
+            logger.warning("⚠️ No text extracted from image")
             await status_msg.edit_text(
                 "❌ Could not extract any text from the image.\n"
                 "Please ensure the equation is clearly visible and well-lit."
             )
             return
         
-        logger.info(f"OCR extracted: {extracted_text} (method: {method})")
+        logger.info(f"📝 OCR extracted: {extracted_text} (method: {method})")
         
         # Parse equation
         await status_msg.edit_text(f"📝 Parsing equation...\nDetected: `{extracted_text}`")
         left_expr, right_expr, error = parser.parse_equation(extracted_text)
         
         if error:
-            logger.error(f"Parse error: {error}")
+            logger.error(f"❌ Parse error: {error}")
             await status_msg.edit_text(
                 f"❌ {error}\n\n"
                 f"Raw text detected: `{extracted_text}`"
@@ -155,7 +184,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Solve
         await status_msg.edit_text("🧮 Solving...")
         steps, result = solver.solve_equation(left_expr, right_expr)
-        logger.info(f"Equation solved: {result}")
+        logger.info(f"✅ Equation solved: {result}")
         
         # Format response
         response = f"📸 **Photo Equation Solver**\n"
@@ -171,8 +200,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             add_history(user_id, "photo_solve", extracted_text, str(result))
             logger.info("✅ Saved to history")
         except Exception as e:
-            logger.error(f"Failed to save to history: {e}")
+            logger.error(f"❌ Failed to save to history: {e}")
         
     except Exception as e:
-        logger.error(f"Error processing image: {e}", exc_info=True)
+        logger.error(f"❌ Error processing image: {e}", exc_info=True)
         await status_msg.edit_text(f"❌ Error processing image: {str(e)}")
