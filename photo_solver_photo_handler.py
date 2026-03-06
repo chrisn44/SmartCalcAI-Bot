@@ -6,10 +6,11 @@ import tempfile
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from photo_solver-image_processor import enhance_image, load_image_from_update, image_to_bytes
-from photo_solver-ocr_engine import OCREngine
-from photo_solver-equation_parser import EquationParser
-from photo_solver-solver import EquationSolver
+# CORRECTED IMPORTS - using underscores instead of hyphens
+from photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
+from photo_solver_ocr_engine import OCREngine
+from photo_solver_equation_parser import EquationParser
+from photo_solver_solver import EquationSolver
 
 # Initialize components (singletons)
 ocr_engine = OCREngine()
