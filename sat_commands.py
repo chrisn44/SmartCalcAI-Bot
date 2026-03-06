@@ -213,6 +213,22 @@ async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ========== PHOTO EQUATION SOLVER (Premium) ==========
+
+@premium_required
+async def solvephoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guide user to send a photo for equation solving"""
+    await update.message.reply_text(
+        "📸 **Photo Equation Solver**\n\n"
+        "Send me a photo of any mathematical equation, and I'll solve it step‑by‑step!\n\n"
+        "**Tips for best results:**\n"
+        "• Good lighting\n"
+        "• Clear handwriting or printed text\n"
+        "• Square/cropped to the equation\n\n"
+        "Ready? Send me a photo now!",
+        parse_mode='Markdown'
+    )
+    
 # ========== COMPLEX NUMBERS COMMANDS ==========
 
 async def complex_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
