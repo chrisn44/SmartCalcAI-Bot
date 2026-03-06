@@ -1,5 +1,6 @@
 """
 SAT Integration Module - Connects SAT features to the main bot
+Includes spam protection and owner management commands
 """
 
 from telegram.ext import CommandHandler, MessageHandler, filters
@@ -38,7 +39,7 @@ def add_sat_handlers(app):
     app.add_handler(CommandHandler("triangle_area", sat_commands.triangle_area_command))
     app.add_handler(CommandHandler("pythagorean", sat_commands.pythagorean_command))
     
-    # Vector Calculus (NEW)
+    # Vector Calculus
     app.add_handler(CommandHandler("gradient", sat_commands.gradient_command))
     app.add_handler(CommandHandler("divergence", sat_commands.divergence_command))
     app.add_handler(CommandHandler("curl", sat_commands.curl_command))
@@ -55,7 +56,29 @@ def add_sat_handlers(app):
     # 👑 Owner Statistics
     app.add_handler(CommandHandler("botstats", sat_commands.botstats_command))
     
-    # 📸 Photo Equation Solver (Premium) - ENHANCED
+    # ========== SPAM PROTECTION COMMANDS (Owner Only) ==========
+    try:
+        from spam_commands import (
+            spam_stats_command,
+            unban_user_command,
+            unban_chat_command,
+            adjust_limits_command,
+            whitelist_user_command
+        )
+        
+        app.add_handler(CommandHandler("spamstats", spam_stats_command))
+        app.add_handler(CommandHandler("unbanuser", unban_user_command))
+        app.add_handler(CommandHandler("unbanchat", unban_chat_command))
+        app.add_handler(CommandHandler("setlimit", adjust_limits_command))
+        app.add_handler(CommandHandler("whitelist", whitelist_user_command))
+        
+        print("✅ Spam protection commands registered")
+    except ImportError as e:
+        print(f"⚠️ Spam protection module not available: {e}")
+    except Exception as e:
+        print(f"⚠️ Error registering spam commands: {e}")
+    
+    # ========== PHOTO EQUATION SOLVER (Premium) ==========
     try:
         from photo_solver_photo_handler import handle_photo
         # Register for all possible image types
@@ -78,7 +101,16 @@ def add_sat_handlers(app):
     except Exception as e:
         print(f"⚠️ Error registering solvephoto command: {e}")
     
+    # ========== MESSAGE FILTER (Spam Prevention) ==========
+    try:
+        from message_filter import SpamFilter
+        # This will be handled in the main message handler in bot.py
+        print("✅ Spam filter initialized")
+    except ImportError as e:
+        print(f"⚠️ Spam filter not available: {e}")
+    
     print("✅ SAT features loaded successfully!")
     print("   • 20+ SAT math commands")
     print("   • Vector calculus: gradient, divergence, curl")
     print("   • Premium features: fit, exportpdf, test, photo solver")
+    print("   • Spam protection: /spamstats, /unbanuser, /unbanchat, /setlimit")
