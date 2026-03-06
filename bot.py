@@ -541,61 +541,31 @@ async def fourier(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ========== Vector Calculus ==========
+# ========== Vector Calculus (OLD - DISABLED - now using SAT versions) ==========
 
 async def gradient(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await enforce_limit(update): return
-    text = ' '.join(context.args)
-    if not text:
-        await update.message.reply_text(
-            "📐 **Gradient**\n\n"
-            "Usage: `/gradient <scalar field>`\n"
-            "Example: `/gradient x^2*y + y*z`",
-            parse_mode='Markdown'
-        )
-        return
-    try:
-        steps, result = calculator.gradient(text)
-        await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "gradient", text, str(result))
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    """Old gradient command - DISABLED (using SAT version instead)"""
+    await update.message.reply_text(
+        "⚠️ This command has been moved to the new SAT module.\n"
+        "Please use `/gradient` again - it will work now!",
+        parse_mode='Markdown'
+    )
 
 async def divergence(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await enforce_limit(update): return
-    text = ' '.join(context.args)
-    if not text:
-        await update.message.reply_text(
-            "📐 **Divergence**\n\n"
-            "Usage: `/divergence [F_x, F_y, F_z]`\n"
-            "Example: `/divergence [x*y, y*z, z*x]`",
-            parse_mode='Markdown'
-        )
-        return
-    try:
-        steps, result = calculator.divergence(text)
-        await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "divergence", text, str(result))
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    """Old divergence command - DISABLED (using SAT version instead)"""
+    await update.message.reply_text(
+        "⚠️ This command has been moved to the new SAT module.\n"
+        "Please use `/divergence` again - it will work now!",
+        parse_mode='Markdown'
+    )
 
 async def curl(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await enforce_limit(update): return
-    text = ' '.join(context.args)
-    if not text:
-        await update.message.reply_text(
-            "📐 **Curl**\n\n"
-            "Usage: `/curl [F_x, F_y, F_z]`\n"
-            "Example: `/curl [x*y, y*z, z*x]`",
-            parse_mode='Markdown'
-        )
-        return
-    try:
-        steps, result = calculator.curl(text)
-        await reply_with_steps(update, steps, result)
-        history.add_history(update.effective_user.id, "curl", text, str(result))
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    """Old curl command - DISABLED (using SAT version instead)"""
+    await update.message.reply_text(
+        "⚠️ This command has been moved to the new SAT module.\n"
+        "Please use `/curl` again - it will work now!",
+        parse_mode='Markdown'
+    )
 
 # ========== Numerical Methods Commands ==========
 
@@ -1643,7 +1613,8 @@ def run_bot():
     app.add_handler(CommandHandler("invlaplace", inverse_laplace))
     app.add_handler(CommandHandler("fourier", fourier))
     
-    # Free commands - Vector Calculus
+    # Free commands - Vector Calculus (OLD - DISABLED - using SAT versions instead)
+    # These are kept but will show a friendly message redirecting to SAT versions
     app.add_handler(CommandHandler("gradient", gradient))
     app.add_handler(CommandHandler("divergence", divergence))
     app.add_handler(CommandHandler("curl", curl))
@@ -1676,7 +1647,7 @@ def run_bot():
     # Free commands - History
     app.add_handler(CommandHandler("history", history_cmd))
 
-    # Load SAT features (includes /botstats command)
+    # Load SAT features (includes the NEW vector calculus commands)
     from sat_integration import add_sat_handlers
     add_sat_handlers(app)
     
