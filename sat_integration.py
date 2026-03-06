@@ -2,7 +2,7 @@
 SAT Integration Module - Connects SAT features to the main bot
 """
 
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, MessageHandler, filters
 import sat_commands
 
 def add_sat_handlers(app):
@@ -43,18 +43,33 @@ def add_sat_handlers(app):
     
     # PDF Export (Premium)
     app.add_handler(CommandHandler("exportpdf", sat_commands.exportpdf_command))
-
-# Photo equation solver (handles actual photos)
-from photo_solver-photo_handler import handle_photo
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-# Command to guide users
-app.add_handler(CommandHandler("solvephoto", sat_commands.solvephoto_command))
     
     # Test Generator (Premium)
     app.add_handler(CommandHandler("test", sat_commands.test_command))
     
-    # 👑 Owner Statistics (New)
+    # 👑 Owner Statistics
     app.add_handler(CommandHandler("botstats", sat_commands.botstats_command))
     
+    # 📸 Photo Equation Solver (Premium) - NEW
+    # Import the photo handler - using correct underscore imports
+    try:
+        from photo_solver_photo_handler import handle_photo
+        # Handler for actual photo messages
+        app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        print("✅ Photo equation solver handler registered")
+    except ImportError as e:
+        print(f"⚠️ Photo solver not available: {e}")
+    except Exception as e:
+        print(f"⚠️ Error registering photo handler: {e}")
+    
+    # Command to guide users to send photos
+    try:
+        app.add_handler(CommandHandler("solvephoto", sat_commands.solvephoto_command))
+        print("✅ /solvephoto command registered")
+    except Exception as e:
+        print(f"⚠️ Error registering solvephoto command: {e}")
+    
     print("✅ SAT features loaded successfully!")
+    print("   • 20+ SAT math commands")
+    print("   • Premium features: fit, exportpdf, test")
+    print("   • Photo equation solver (premium)")
