@@ -26,26 +26,45 @@ from reportlab.lib import colors
 def solve_quadratic(eq_str, var='x'):
     """
     Solve quadratic equation: ax² + bx + c = 0 with detailed steps.
-    Examples: "2x^2 + 3x - 5 = 0", "x^2 - 4 = 0", "x^2 + 2x + 5 = 0"
+    Examples: "2x^2+3x-5=0", "x^2-4=0", "2x^2+7x-15=0", "x^2+2x+5=0"
     """
     var_sym = sp.Symbol(var)
     steps = [f"📐 **Quadratic Equation:** {eq_str}"]
     
     try:
+        # Clean the equation - remove spaces
+        eq_str = eq_str.replace(' ', '')
+        
         # Parse equation
         if '=' in eq_str:
             left, right = eq_str.split('=')
-            expr = sp.sympify(f"({left}) - ({right})")
+            # If right side is not 0, move everything to left
+            if right != '0':
+                expr_str = f"({left}) - ({right})"
+            else:
+                expr_str = left
         else:
-            expr = sp.sympify(eq_str)
+            # If no equals sign, assume =0
+            expr_str = eq_str
         
+        # Parse the expression
+        expr = sp.sympify(expr_str)
         expr = sp.expand(expr)
-        coeffs = sp.Poly(expr, var_sym).all_coeffs()
         
-        if len(coeffs) != 3:
-            steps.append("❌ This is not a quadratic equation (need ax²+bx+c=0 form)")
+        # Get polynomial coefficients
+        poly = sp.Poly(expr, var_sym)
+        coeffs = poly.all_coeffs()
+        
+        # Handle cases where degree < 2
+        if len(coeffs) > 3:
+            steps.append("❌ This is not a quadratic equation (degree > 2)")
             return steps, None
+        elif len(coeffs) < 3:
+            # Pad with zeros for missing terms
+            while len(coeffs) < 3:
+                coeffs.insert(0, 0)
         
+        # Convert to float for calculation
         a, b, c = [float(coeff) for coeff in coeffs]
         
         steps.append(f"• Standard form: {a}x² + {b}x + {c} = 0")
@@ -55,7 +74,7 @@ def solve_quadratic(eq_str, var='x'):
         discriminant = b**2 - 4*a*c
         steps.append(f"• Discriminant Δ = b² - 4ac = {b}² - 4·{a}·{c} = {discriminant:.4f}")
         
-        if abs(discriminant) < 1e-10:  # practically zero
+        if abs(discriminant) < 1e-10:
             discriminant = 0
             
         if discriminant > 0:
@@ -90,18 +109,28 @@ def solve_quadratic(eq_str, var='x'):
 def solve_rational(eq_str, var='x'):
     """
     Solve rational equations (with fractions).
-    Example: "(x+1)/(x-2) = 3", "2/(x+1) = 4/(x-3)"
+    Example: "(x+2)/(x-3)=4", "(2x+1)/(x-1)=(x+4)/(x+2)", "2/(x+1)=3/(x-2)"
     """
     var_sym = sp.Symbol(var)
     steps = [f"📐 **Rational Equation:** {eq_str}"]
     
     try:
-        # Parse equation
-        if '=' in eq_str:
-            left, right = eq_str.split('=')
-            expr = sp.sympify(f"({left}) - ({right})")
-        else:
-            expr = sp.sympify(eq_str)
+        # Clean the equation - remove spaces
+        eq_str = eq_str.replace(' ', '')
+        
+        # Check if equation contains '='
+        if '=' not in eq_str:
+            steps.append("❌ Equation must contain '=' sign")
+            return steps, None
+        
+        # Split into left and right sides
+        left, right = eq_str.split('=')
+        
+        # Create expression: left - right = 0
+        expr_str = f"({left}) - ({right})"
+        
+        # Parse the expression
+        expr = sp.sympify(expr_str)
         
         # Combine into single fraction
         expr_combined = sp.together(expr)
@@ -113,20 +142,38 @@ def solve_rational(eq_str, var='x'):
         # Solve numerator
         solutions = sp.solve(numer, var_sym)
         
+        if not solutions:
+            steps.append("• No solutions found")
+            return steps, []
+        
         # Check for extraneous roots (denominator = 0)
         valid_solutions = []
         for sol in solutions:
-            if denom.subs(var_sym, sol) != 0:
+            # Check if solution makes denominator zero
+            try:
+                denom_val = denom.subs(var_sym, sol)
+                if denom_val != 0:
+                    valid_solutions.append(sol)
+                else:
+                    steps.append(f"• ❌ Extraneous root: {sol} makes denominator zero")
+            except:
+                # If substitution fails, keep the solution
                 valid_solutions.append(sol)
-            else:
-                steps.append(f"• ❌ Extraneous root: {sol} makes denominator zero")
         
         if valid_solutions:
-            steps.append(f"• ✅ Valid solutions: {valid_solutions}")
+            # Convert to float for nicer output
+            float_solutions = []
+            for sol in valid_solutions:
+                try:
+                    float_solutions.append(float(sol))
+                except:
+                    float_solutions.append(sol)
+            
+            steps.append(f"• ✅ Valid solutions: {float_solutions}")
+            return steps, float_solutions
         else:
             steps.append(f"• ❌ No valid solutions")
-            
-        return steps, valid_solutions
+            return steps, []
         
     except Exception as e:
         steps.append(f"❌ Error: {str(e)}")
@@ -184,11 +231,14 @@ def solve_proportion(prop_str):
     steps = ["📊 **Proportion Solver**"]
     
     try:
-        # Parse format like "3:4 = 12:x" or "5:2 = x:8"
-        match = re.match(r'(\d+):(\d+)\s*=\s*(\d+|x):([a-z]|\d+)', prop_str.replace(' ', ''))
+        # Remove spaces
+        prop_str = prop_str.replace(' ', '')
+        
+        # Parse format like "3:4=12:x" or "5:2=x:8"
+        match = re.match(r'(\d+):(\d+)=(\d+|x):([a-z]|\d+)', prop_str)
         if not match:
-            # Try alternative format "3/4 = 12/x"
-            match = re.match(r'(\d+)/(\d+)\s*=\s*(\d+)/([a-z])', prop_str.replace(' ', ''))
+            # Try alternative format "3/4=12/x"
+            match = re.match(r'(\d+)/(\d+)=(\d+)/([a-z])', prop_str)
             
         if not match:
             steps.append("❌ Invalid format. Use a:b = c:d or a/b = c/x")
@@ -255,6 +305,9 @@ def solve_trig_equation(eq_str, var='x', degrees=True):
     steps = [f"📐 **Trigonometric Equation:** {eq_str}"]
     
     try:
+        # Remove spaces
+        eq_str = eq_str.replace(' ', '')
+        
         # Parse equation
         if '=' in eq_str:
             left, right = eq_str.split('=')
@@ -491,7 +544,7 @@ def pythagorean_theorem(a=None, b=None, c=None):
         steps.append(f"❌ Error: {str(e)}")
         return steps, None
 
-# ========== VECTOR CALCULUS (NEW) ==========
+# ========== VECTOR CALCULUS ==========
 
 def curl(vector_field, variables=None):
     """
