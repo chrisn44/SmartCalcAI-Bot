@@ -551,7 +551,8 @@ async def fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "**Parameters:**\n"
             "• Use letters (a,b,c,etc.) for parameters to fit\n"
             "• Use `x` as the variable\n"
-            "• Separate values with commas",
+            "• Separate values with commas\n\n"
+            "**Note:** Need at least 3 data points for exponential fitting",
             parse_mode='Markdown'
         )
         return
@@ -562,12 +563,15 @@ async def fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         x_data = args[1]
         y_data = args[2]
         
+        # Send initial status
+        status_msg = await update.message.reply_text("📈 Performing curve fit...")
+        
         steps, results = sat_calculator.curve_fit_function(func_template, x_data, y_data)
         
         if results:
             # Send steps as text
             steps_text = "\n".join(steps)
-            await update.message.reply_text(steps_text, parse_mode='Markdown')
+            await status_msg.edit_text(steps_text, parse_mode='Markdown')
             
             # Send the plot if available
             if 'plot' in results:
@@ -581,7 +585,12 @@ async def fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             history.add_history(update.effective_user.id, "fit", 
                                f"{func_template} {x_data} {y_data}", result_summary)
         else:
-            await update.message.reply_text("❌ Curve fitting failed. Check your function and data.")
+            # Send the steps even if fitting failed
+            if steps and len(steps) > 1:
+                steps_text = "\n".join(steps)
+                await status_msg.edit_text(steps_text, parse_mode='Markdown')
+            else:
+                await status_msg.edit_text("❌ Curve fitting failed. Check your function and data.")
             
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
