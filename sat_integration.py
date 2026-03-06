@@ -38,6 +38,11 @@ def add_sat_handlers(app):
     app.add_handler(CommandHandler("triangle_area", sat_commands.triangle_area_command))
     app.add_handler(CommandHandler("pythagorean", sat_commands.pythagorean_command))
     
+    # Vector Calculus (NEW)
+    app.add_handler(CommandHandler("gradient", sat_commands.gradient_command))
+    app.add_handler(CommandHandler("divergence", sat_commands.divergence_command))
+    app.add_handler(CommandHandler("curl", sat_commands.curl_command))
+    
     # Curve Fitting (Premium)
     app.add_handler(CommandHandler("fit", sat_commands.fit_command))
     
@@ -50,11 +55,9 @@ def add_sat_handlers(app):
     # 👑 Owner Statistics
     app.add_handler(CommandHandler("botstats", sat_commands.botstats_command))
     
-    # 📸 Photo Equation Solver (Premium) - NEW
-    # Import the photo handler - using correct underscore imports
+    # 📸 Photo Equation Solver (Premium)
     try:
         from photo_solver_photo_handler import handle_photo
-        # Handler for actual photo messages
         app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         print("✅ Photo equation solver handler registered")
     except ImportError as e:
@@ -71,5 +74,5 @@ def add_sat_handlers(app):
     
     print("✅ SAT features loaded successfully!")
     print("   • 20+ SAT math commands")
-    print("   • Premium features: fit, exportpdf, test")
-    print("   • Photo equation solver (premium)")
+    print("   • Vector calculus: gradient, divergence, curl")
+    print("   • Premium features: fit, exportpdf, test, photo solver")
