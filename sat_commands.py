@@ -28,21 +28,31 @@ async def quadratic_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Examples:\n"
             "• `/quadratic 2x^2 + 3x - 5 = 0`\n"
             "• `/quadratic x^2 - 4 = 0`\n"
+            "• `/quadratic 2x^2 + 7x - 15 = 0`\n"
             "• `/quadratic x^2 + 2x + 5 = 0`",
             parse_mode='Markdown'
         )
         return
     
     try:
-        steps, solutions = sat_calculator.solve_quadratic(text)
+        # Remove spaces for parsing
+        clean_text = text.replace(' ', '')
+        steps, solutions = sat_calculator.solve_quadratic(clean_text)
+        
         if solutions is not None:
-            result_str = ", ".join([str(s) for s in solutions])
+            if len(solutions) == 2:
+                result_str = f"x₁ = {solutions[0]}, x₂ = {solutions[1]}"
+            elif len(solutions) == 1:
+                result_str = f"x = {solutions[0]} (double root)"
+            else:
+                result_str = ", ".join([str(s) for s in solutions])
+            
             await reply_with_steps(update, steps, result_str)
             history.add_history(update.effective_user.id, "quadratic", text, result_str)
         else:
             await update.message.reply_text("❌ Could not solve the equation.")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}\n\nTry: `/quadratic 2x^2+7x-15=0`")
 
 async def rational_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /rational command"""
@@ -53,22 +63,26 @@ async def rational_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📐 **Rational Equation Solver**\n\n"
             "Usage: `/rational <equation>`\n"
             "Examples:\n"
-            "• `/rational (x+1)/(x-2) = 3`\n"
-            "• `/rational 2/(x+1) = 4/(x-3)`",
+            "• `/rational (x+2)/(x-3) = 4`\n"
+            "• `/rational (2x+1)/(x-1) = (x+4)/(x+2)`\n"
+            "• `/rational 2/(x+1) = 3/(x-2)`",
             parse_mode='Markdown'
         )
         return
     
     try:
-        steps, solutions = sat_calculator.solve_rational(text)
-        if solutions is not None:
+        # Remove spaces for parsing
+        clean_text = text.replace(' ', '')
+        steps, solutions = sat_calculator.solve_rational(clean_text)
+        
+        if solutions is not None and len(solutions) > 0:
             result_str = ", ".join([str(s) for s in solutions])
             await reply_with_steps(update, steps, result_str)
             history.add_history(update.effective_user.id, "rational", text, result_str)
         else:
             await update.message.reply_text("❌ Could not solve the equation.")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}\n\nTry: `/rational (2x+1)/(x-1)=(x+4)/(x+2)`")
 
 # ========== PERCENTAGES & RATIOS COMMANDS ==========
 
@@ -149,7 +163,9 @@ async def ratio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        steps, result = sat_calculator.solve_proportion(text)
+        # Remove spaces for parsing
+        clean_text = text.replace(' ', '')
+        steps, result = sat_calculator.solve_proportion(clean_text)
         if result is not None:
             await reply_with_steps(update, steps, result)
             history.add_history(update.effective_user.id, "ratio", text, str(result))
@@ -203,7 +219,9 @@ async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        steps, solutions = sat_calculator.solve_trig_equation(text)
+        # Remove spaces for parsing
+        clean_text = text.replace(' ', '')
+        steps, solutions = sat_calculator.solve_trig_equation(clean_text)
         if solutions is not None:
             result_str = ", ".join([str(s) for s in solutions])
             await reply_with_steps(update, steps, result_str)
@@ -231,7 +249,6 @@ async def gradient_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.gradient(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "gradient", text, str(result))
@@ -254,7 +271,6 @@ async def divergence_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     try:
-        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.divergence(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "divergence", text, str(result))
@@ -277,7 +293,6 @@ async def curl_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.curl(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "curl", text, str(result))
