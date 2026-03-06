@@ -31,6 +31,8 @@ import matrix
 import stats
 import history
 from llm_integration import LLMHandler, interpret_math_query
+from spam_protected_handler import spam_protected
+from message_filter import spam_filter
 
 # Flask web server for Railway
 if WEB_SERVER:
@@ -1468,10 +1470,20 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         parse_mode='Markdown'
     )
 
-# ========== Natural Language Handler ==========
+# ========== Natural Language Handler with Spam Protection ==========
 
+# Import spam protection
+from spam_protected_handler import spam_protected
+from message_filter import spam_filter
+
+@spam_protected
 async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle non-command messages - Premium feature with built-in AI!"""
+    """Handle non-command messages - with spam protection"""
+    
+    # First, filter spam messages
+    if await spam_filter.filter_message(update):
+        return
+    
     user_text = update.message.text
     user_id = update.effective_user.id
     
