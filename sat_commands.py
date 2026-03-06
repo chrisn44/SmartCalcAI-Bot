@@ -213,7 +213,7 @@ async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ========== VECTOR CALCULUS COMMANDS (NEW) ==========
+# ========== VECTOR CALCULUS COMMANDS ==========
 
 async def gradient_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /gradient command"""
@@ -231,6 +231,7 @@ async def gradient_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
+        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.gradient(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "gradient", text, str(result))
@@ -253,6 +254,7 @@ async def divergence_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     try:
+        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.divergence(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "divergence", text, str(result))
@@ -275,7 +277,7 @@ async def curl_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Make sure to use sat_calculator, not the old calculator
+        # Use sat_calculator, not the old calculator
         steps, result = sat_calculator.curl(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "curl", text, str(result))
