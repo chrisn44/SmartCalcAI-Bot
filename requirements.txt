@@ -13,6 +13,7 @@ reportlab>=4.0.0
 opencv-python-headless>=4.8.0
 pytesseract>=0.3.10
 pillow>=10.0.0
+psutil>=5.9.0
 
 # Advanced LaTeX OCR (optional but recommended)
 # pix2tex[api]>=0.1.0  # Uncomment if you want transformer‑based OCR
