@@ -187,7 +187,7 @@ async def prob_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========== TRIGONOMETRY COMMANDS ==========
 
 async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /trig command (was /trig-solve)"""
+    """Handle /trig command"""
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
@@ -213,22 +213,74 @@ async def trig_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ========== PHOTO EQUATION SOLVER (Premium) ==========
+# ========== VECTOR CALCULUS COMMANDS (NEW) ==========
 
-@premium_required
-async def solvephoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Guide user to send a photo for equation solving"""
-    await update.message.reply_text(
-        "📸 **Photo Equation Solver**\n\n"
-        "Send me a photo of any mathematical equation, and I'll solve it step‑by‑step!\n\n"
-        "**Tips for best results:**\n"
-        "• Good lighting\n"
-        "• Clear handwriting or printed text\n"
-        "• Square/cropped to the equation\n\n"
-        "Ready? Send me a photo now!",
-        parse_mode='Markdown'
-    )
+async def gradient_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /gradient command"""
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📐 **Gradient Calculator**\n\n"
+            "Usage: `/gradient <scalar field>`\n"
+            "Examples:\n"
+            "• `/gradient x^2*y + y*z`\n"
+            "• `/gradient sin(x)*cos(y)`",
+            parse_mode='Markdown'
+        )
+        return
     
+    try:
+        steps, result = sat_calculator.gradient(text)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "gradient", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def divergence_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /divergence command"""
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📐 **Divergence Calculator**\n\n"
+            "Usage: `/divergence [F_x, F_y, F_z]`\n"
+            "Examples:\n"
+            "• `/divergence [x*y, y*z, z*x]`\n"
+            "• `/divergence x*y, y*z, z*x`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        steps, result = sat_calculator.divergence(text)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "divergence", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def curl_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /curl command"""
+    if not await enforce_limit(update): return
+    text = ' '.join(context.args)
+    if not text:
+        await update.message.reply_text(
+            "📐 **Curl Calculator**\n\n"
+            "Usage: `/curl [F_x, F_y, F_z]`\n"
+            "Examples:\n"
+            "• `/curl [x*y, y*z, z*x]`\n"
+            "• `/curl x*y, y*z, z*x`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        steps, result = sat_calculator.curl(text)
+        await reply_with_steps(update, steps, result)
+        history.add_history(update.effective_user.id, "curl", text, str(result))
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
 # ========== COMPLEX NUMBERS COMMANDS ==========
 
 async def complex_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,7 +310,7 @@ async def complex_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def polar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /polar command (was /complex-polar)"""
+    """Handle /polar command"""
     if not await enforce_limit(update): return
     text = ' '.join(context.args)
     if not text:
@@ -566,7 +618,23 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Could not generate test.")
 
-# ========== OWNER STATISTICS COMMAND (FIXED) ==========
+# ========== PHOTO EQUATION SOLVER (Premium) ==========
+
+@premium_required
+async def solvephoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guide user to send a photo for equation solving"""
+    await update.message.reply_text(
+        "📸 **Photo Equation Solver**\n\n"
+        "Send me a photo of any mathematical equation, and I'll solve it step‑by‑step!\n\n"
+        "**Tips for best results:**\n"
+        "• Good lighting\n"
+        "• Clear handwriting or printed text\n"
+        "• Square/cropped to the equation\n\n"
+        "Ready? Send me a photo now!",
+        parse_mode='Markdown'
+    )
+
+# ========== OWNER STATISTICS COMMAND ==========
 
 async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner command to get real bot statistics."""
