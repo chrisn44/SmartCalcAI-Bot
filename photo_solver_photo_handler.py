@@ -11,23 +11,41 @@ from telegram.ext import ContextTypes
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# CORRECTED IMPORTS - using underscores instead of hyphens
+# Try different import strategies
+IMPORTS_SUCCESS = False
+
+# Strategy 1: Direct imports (files in same directory)
 try:
     from photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
     from photo_solver_ocr_engine import OCREngine
     from photo_solver_equation_parser import EquationParser
     from photo_solver_solver import EquationSolver
     IMPORTS_SUCCESS = True
+    logger.info("✅ Direct imports successful")
 except ImportError as e:
-    logger.error(f"Failed to import photo solver modules: {e}")
-    IMPORTS_SUCCESS = False
+    logger.warning(f"Direct imports failed: {e}")
+    
+    # Strategy 2: Try relative imports (with dot)
+    try:
+        from .photo_solver_image_processor import enhance_image, load_image_from_update, image_to_bytes
+        from .photo_solver_ocr_engine import OCREngine
+        from .photo_solver_equation_parser import EquationParser
+        from .photo_solver_solver import EquationSolver
+        IMPORTS_SUCCESS = True
+        logger.info("✅ Relative imports successful")
+    except ImportError as e:
+        logger.error(f"All import strategies failed: {e}")
 
 # Initialize components (singletons) only if imports succeeded
 if IMPORTS_SUCCESS:
-    ocr_engine = OCREngine()
-    parser = EquationParser()
-    solver = EquationSolver()
-    logger.info("✅ Photo solver components initialized")
+    try:
+        ocr_engine = OCREngine()
+        parser = EquationParser()
+        solver = EquationSolver()
+        logger.info("✅ Photo solver components initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize components: {e}")
+        IMPORTS_SUCCESS = False
 else:
     ocr_engine = None
     parser = None
@@ -52,15 +70,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if imports succeeded
     if not IMPORTS_SUCCESS:
-        await update.message.reply_text(
-            "❌ Photo solver modules are not properly installed.\n"
-            "Please check the server logs for more information."
-        )
+        error_msg = "❌ Photo solver modules are not properly installed.\n"
+        error_msg += "Please check the server logs for more information."
+        logger.error(error_msg)
+        await update.message.reply_text(error_msg)
         return
     
     # Import premium check from your existing system
     try:
         from bot import is_owner, history
+        logger.info("✅ Successfully imported from bot")
     except ImportError as e:
         logger.error(f"Failed to import from bot: {e}")
         await update.message.reply_text(
@@ -81,6 +100,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown'
             )
             return
+        logger.info("✅ Premium check passed")
     except Exception as e:
         logger.error(f"Premium check failed: {e}")
         await update.message.reply_text(
@@ -149,6 +169,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             from history import add_history
             add_history(user_id, "photo_solve", extracted_text, str(result))
+            logger.info("✅ Saved to history")
         except Exception as e:
             logger.error(f"Failed to save to history: {e}")
         
