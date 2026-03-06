@@ -43,6 +43,13 @@ def add_sat_handlers(app):
     
     # PDF Export (Premium)
     app.add_handler(CommandHandler("exportpdf", sat_commands.exportpdf_command))
+
+    # Photo equation solver (handles actual photos)
+from photo_solver.photo_handler import handle_photo
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+# Command to guide users
+app.add_handler(CommandHandler("solvephoto", sat_commands.solvephoto_command))
     
     # Test Generator (Premium)
     app.add_handler(CommandHandler("test", sat_commands.test_command))
