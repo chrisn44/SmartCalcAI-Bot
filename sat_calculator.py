@@ -797,11 +797,16 @@ def curve_fit_function(func_template, x_data_str, y_data_str):
             steps.append("❌ X and Y data must have the same length")
             return steps, None
         
+        if len(x) < 3:
+            steps.append("❌ Need at least 3 data points for this function")
+            return steps, None
+        
         # Parse the function template to identify parameters
         # Find all parameter names (single letters commonly used)
+        import re
         param_matches = re.findall(r'[a-zA-Z]', func_template)
         # Get unique parameters, excluding x and common constants
-        exclude = {'x', 'e', 'π', 'pi'}
+        exclude = {'x', 'e', 'π', 'pi', 'exp', 'sin', 'cos', 'tan', 'log', 'sqrt'}
         params = sorted(list(set([p for p in param_matches if p not in exclude])))
         
         if not params:
@@ -810,24 +815,48 @@ def curve_fit_function(func_template, x_data_str, y_data_str):
         
         steps.append(f"• Parameters to fit: {', '.join(params)}")
         
+        # Prepare the function for fitting
+        # Replace ^ with ** for Python syntax
+        func_expr = func_template.replace('^', '**')
+        
         # Create the fitting function
         def create_fit_func(params):
             def fit_func(x, *p):
                 # Create local namespace with parameters
-                namespace = {'x': x, 'math': math, 'np': np}
+                namespace = {
+                    'x': x, 
+                    'math': math, 
+                    'np': np,
+                    'exp': np.exp,
+                    'sin': np.sin,
+                    'cos': np.cos,
+                    'tan': np.tan,
+                    'log': np.log,
+                    'sqrt': np.sqrt
+                }
                 for param_name, param_value in zip(params, p):
                     namespace[param_name] = param_value
                 
                 # Safe evaluation of the expression
                 try:
-                    # Replace ^ with ** for Python syntax
-                    expr = func_template.replace('^', '**')
-                    return eval(expr, {"__builtins__": {}}, namespace)
-                except:
+                    return eval(func_expr, {"__builtins__": {}}, namespace)
+                except Exception as e:
+                    print(f"Eval error: {e}")
                     return np.nan
             return fit_func
         
         fit_func = create_fit_func(params)
+        
+        # Test the function with initial guess
+        test_x = x[0]
+        try:
+            test_val = fit_func(test_x, *[1.0]*len(params))
+            if np.isnan(test_val):
+                steps.append("❌ Function evaluation failed with initial guess")
+                return steps, None
+        except Exception as e:
+            steps.append(f"❌ Function test failed: {e}")
+            return steps, None
         
         # Initial guess: all parameters start at 1.0
         initial_guess = [1.0] * len(params)
@@ -836,7 +865,21 @@ def curve_fit_function(func_template, x_data_str, y_data_str):
         
         # Perform curve fitting
         try:
-            popt, pcov = optimize.curve_fit(fit_func, x, y, p0=initial_guess, maxfev=5000)
+            # Use curve_fit with bounds to help convergence
+            from scipy.optimize import curve_fit
+            
+            # Set bounds to avoid extreme values
+            bounds = (-np.inf, np.inf)  # No bounds for now
+            if 'exp' in func_template:
+                # For exponential functions, keep parameters reasonable
+                bounds = ([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
+            
+            popt, pcov = curve_fit(
+                fit_func, x, y, 
+                p0=initial_guess,
+                maxfev=10000,  # Increase max iterations
+                method='trf'  # Trust region reflective for better stability
+            )
             
             # Calculate fitted values
             y_fit = fit_func(x, *popt)
@@ -899,7 +942,10 @@ def curve_fit_function(func_template, x_data_str, y_data_str):
             
         except Exception as fit_error:
             steps.append(f"❌ Curve fitting failed: {str(fit_error)}")
-            steps.append("  Try a different function template or check your data.")
+            steps.append("  Possible issues:")
+            steps.append("  • Function doesn't match data pattern")
+            steps.append("  • Too many parameters for few data points")
+            steps.append("  • Bad initial guess (try different function)")
             return steps, None
         
     except Exception as e:
