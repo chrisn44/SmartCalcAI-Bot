@@ -9,3 +9,17 @@ openai>=1.0.0
 google-generativeai>=0.3
 anthropic>=0.18
 reportlab>=4.0.0
+# OCR and image processing
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+pillow>=10.0.0
+
+# Advanced LaTeX OCR (optional but recommended)
+# pix2tex[api]>=0.1.0  # Uncomment if you want transformer‑based OCR
+
+# Commercial OCR (optional)
+# aspose-ocr>=24.0.0   # Uncomment if you purchase license
+
+# System dependencies (cannot be pip installed)
+# On Linux: sudo apt-get install tesseract-ocr tesseract-ocr-eng
+# On macOS: brew install tesseract
