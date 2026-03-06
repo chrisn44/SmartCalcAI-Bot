@@ -491,6 +491,180 @@ def pythagorean_theorem(a=None, b=None, c=None):
         steps.append(f"❌ Error: {str(e)}")
         return steps, None
 
+# ========== VECTOR CALCULUS (NEW) ==========
+
+def curl(vector_field, variables=None):
+    """
+    Calculate curl of a vector field in 3D.
+    Input format: "[x*y, y*z, z*x]" or "x*y, y*z, z*x"
+    Returns: (steps, [curl_x, curl_y, curl_z])
+    """
+    steps = ["📐 **Curl Calculator**"]
+    steps.append(f"• Input: {vector_field}")
+    
+    try:
+        if variables is None:
+            variables = ['x', 'y', 'z']
+        
+        if len(variables) != 3:
+            steps.append("❌ Curl is only defined for 3D vector fields")
+            return steps, None
+        
+        # Clean up the input
+        vector_field = vector_field.strip()
+        
+        # Remove brackets if present
+        if vector_field.startswith('[') and vector_field.endswith(']'):
+            vector_field = vector_field[1:-1]
+        
+        # Split by commas
+        components = [comp.strip() for comp in vector_field.split(',')]
+        
+        if len(components) != 3:
+            steps.append(f"❌ Expected 3 components, got {len(components)}")
+            return steps, None
+        
+        # Create symbols
+        x, y, z = sp.symbols('x y z')
+        
+        # Parse each component
+        comps = []
+        for i, comp in enumerate(components):
+            try:
+                expr = sp.sympify(comp)
+                comps.append(expr)
+                steps.append(f"• F{i+1} = {comp} = ${sp.latex(expr)}$")
+            except Exception as e:
+                steps.append(f"❌ Invalid component '{comp}': {e}")
+                return steps, None
+        
+        Fx, Fy, Fz = comps
+        
+        # Calculate curl components
+        steps.append(f"\n**Calculating curl components:**")
+        steps.append(f"  curl_x = ∂Fz/∂y - ∂Fy/∂z")
+        curl_x = sp.diff(Fz, y) - sp.diff(Fy, z)
+        steps.append(f"  = ∂({sp.latex(Fz)})/∂y - ∂({sp.latex(Fy)})/∂z")
+        steps.append(f"  = {sp.latex(curl_x)}")
+        
+        steps.append(f"\n  curl_y = ∂Fx/∂z - ∂Fz/∂x")
+        curl_y = sp.diff(Fx, z) - sp.diff(Fz, x)
+        steps.append(f"  = ∂({sp.latex(Fx)})/∂z - ∂({sp.latex(Fz)})/∂x")
+        steps.append(f"  = {sp.latex(curl_y)}")
+        
+        steps.append(f"\n  curl_z = ∂Fy/∂x - ∂Fx/∂y")
+        curl_z = sp.diff(Fy, x) - sp.diff(Fx, y)
+        steps.append(f"  = ∂({sp.latex(Fy)})/∂x - ∂({sp.latex(Fx)})/∂y")
+        steps.append(f"  = {sp.latex(curl_z)}")
+        
+        curl_vec = [curl_x, curl_y, curl_z]
+        
+        steps.append(f"\n✅ **Result:** ∇×F = {sp.latex(curl_vec)}")
+        
+        return steps, curl_vec
+        
+    except Exception as e:
+        steps.append(f"❌ Error calculating curl: {str(e)}")
+        return steps, None
+
+def gradient(scalar_field, variables=None):
+    """
+    Calculate gradient of a scalar field.
+    Input format: "x^2*y + y*z"
+    """
+    steps = ["📐 **Gradient Calculator**"]
+    steps.append(f"• Input: {scalar_field}")
+    
+    try:
+        if variables is None:
+            variables = ['x', 'y', 'z']
+        
+        # Create symbols
+        vars_sym = [sp.Symbol(v) for v in variables]
+        
+        # Parse the scalar field
+        try:
+            expr = sp.sympify(scalar_field)
+            steps.append(f"• f = ${sp.latex(expr)}$")
+        except Exception as e:
+            steps.append(f"❌ Invalid expression: {e}")
+            return steps, None
+        
+        # Calculate partial derivatives
+        gradient_vec = []
+        steps.append(f"\n**Calculating partial derivatives:**")
+        
+        for i, var in enumerate(vars_sym):
+            deriv = sp.diff(expr, var)
+            gradient_vec.append(deriv)
+            steps.append(f"  ∂f/∂{variables[i]} = {sp.latex(deriv)}")
+        
+        steps.append(f"\n✅ **Result:** ∇f = {sp.latex(gradient_vec)}")
+        
+        return steps, gradient_vec
+        
+    except Exception as e:
+        steps.append(f"❌ Error calculating gradient: {str(e)}")
+        return steps, None
+
+def divergence(vector_field, variables=None):
+    """
+    Calculate divergence of a vector field.
+    Input format: "[x*y, y*z, z*x]" or "x*y, y*z, z*x"
+    """
+    steps = ["📐 **Divergence Calculator**"]
+    steps.append(f"• Input: {vector_field}")
+    
+    try:
+        if variables is None:
+            variables = ['x', 'y', 'z']
+        
+        # Clean up the input
+        vector_field = vector_field.strip()
+        
+        # Remove brackets if present
+        if vector_field.startswith('[') and vector_field.endswith(']'):
+            vector_field = vector_field[1:-1]
+        
+        # Split by commas
+        components = [comp.strip() for comp in vector_field.split(',')]
+        
+        if len(components) != len(variables):
+            steps.append(f"❌ Expected {len(variables)} components, got {len(components)}")
+            return steps, None
+        
+        # Create symbols
+        vars_sym = [sp.Symbol(v) for v in variables]
+        
+        # Parse each component
+        comps = []
+        for i, comp in enumerate(components):
+            try:
+                expr = sp.sympify(comp)
+                comps.append(expr)
+                steps.append(f"• F{i+1} = {comp} = ${sp.latex(expr)}$")
+            except Exception as e:
+                steps.append(f"❌ Invalid component '{comp}': {e}")
+                return steps, None
+        
+        # Calculate divergence: ∂F₁/∂x + ∂F₂/∂y + ∂F₃/∂z
+        steps.append(f"\n**Calculating divergence:**")
+        steps.append(f"  div F = ∂F₁/∂x + ∂F₂/∂y + ∂F₃/∂z")
+        
+        div = 0
+        for i, (comp, var) in enumerate(zip(comps, vars_sym)):
+            deriv = sp.diff(comp, var)
+            div += deriv
+            steps.append(f"  ∂F{i+1}/∂{variables[i]} = {sp.latex(deriv)}")
+        
+        steps.append(f"\n✅ **Result:** ∇·F = {sp.latex(div)}")
+        
+        return steps, div
+        
+    except Exception as e:
+        steps.append(f"❌ Error calculating divergence: {str(e)}")
+        return steps, None
+
 # ========== CURVE FITTING (Premium) ==========
 
 def curve_fit_function(func_template, x_data_str, y_data_str):
