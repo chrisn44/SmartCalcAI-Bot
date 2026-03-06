@@ -275,6 +275,7 @@ async def curl_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
+        # Make sure to use sat_calculator, not the old calculator
         steps, result = sat_calculator.curl(text)
         await reply_with_steps(update, steps, result)
         history.add_history(update.effective_user.id, "curl", text, str(result))
