@@ -73,6 +73,9 @@ async def rational_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Remove spaces for parsing
         clean_text = text.replace(' ', '')
+        print(f"🔍 Original input: '{text}'")
+        print(f"🔍 Cleaned input: '{clean_text}'")
+        
         steps, solutions = sat_calculator.solve_rational(clean_text)
         
         if solutions is not None and len(solutions) > 0:
@@ -82,6 +85,9 @@ async def rational_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("❌ Could not solve the equation.")
     except Exception as e:
+        print(f"❌ Exception in rational_command: {e}")
+        import traceback
+        traceback.print_exc()
         await update.message.reply_text(f"❌ Error: {e}\n\nTry: `/rational (2x+1)/(x-1)=(x+4)/(x+2)`")
 
 # ========== PERCENTAGES & RATIOS COMMANDS ==========
