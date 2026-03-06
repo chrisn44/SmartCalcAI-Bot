@@ -559,14 +559,6 @@ async def divergence(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
 
-async def curl(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Old curl command - DISABLED (using SAT version instead)"""
-    await update.message.reply_text(
-        "⚠️ This command has been moved to the new SAT module.\n"
-        "Please use `/curl` again - it will work now!",
-        parse_mode='Markdown'
-    )
-
 # ========== Numerical Methods Commands ==========
 
 async def fsolve(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1617,7 +1609,6 @@ def run_bot():
     # These are kept but will show a friendly message redirecting to SAT versions
     app.add_handler(CommandHandler("gradient", gradient))
     app.add_handler(CommandHandler("divergence", divergence))
-    app.add_handler(CommandHandler("curl", curl))
     
     # Free commands - Numerical Methods
     app.add_handler(CommandHandler("fsolve", fsolve))
