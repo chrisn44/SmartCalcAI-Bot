@@ -35,8 +35,10 @@ async def quadratic_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Remove spaces for parsing
+        # Keep original for history, but clean for parsing
+        original_text = text
         clean_text = text.replace(' ', '')
+        
         steps, solutions = sat_calculator.solve_quadratic(clean_text)
         
         if solutions is not None:
@@ -48,9 +50,14 @@ async def quadratic_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 result_str = ", ".join([str(s) for s in solutions])
             
             await reply_with_steps(update, steps, result_str)
-            history.add_history(update.effective_user.id, "quadratic", text, result_str)
+            history.add_history(update.effective_user.id, "quadratic", original_text, result_str)
         else:
-            await update.message.reply_text("❌ Could not solve the equation.")
+            # Send the steps even if no solutions
+            if steps and len(steps) > 1:
+                steps_text = "\n".join(steps)
+                await update.message.reply_text(steps_text, parse_mode='Markdown')
+            else:
+                await update.message.reply_text("❌ Could not solve the equation.")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}\n\nTry: `/quadratic 2x^2+7x-15=0`")
 
